@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CompanyDetails, ItemDescription } from '../utils/localStorage';
+import { trackSavedDataUsed } from '../utils/analytics';
 
 interface Option {
   id: string;
@@ -34,10 +35,16 @@ const SavedOptionsDropdown: React.FC<SavedOptionsDropdownProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isClient, setIsClient] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Convert options to standardized format
-  const formattedOptions: Option[] = options.map(option => {
+  // Ensure component only shows saved options after client-side hydration
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Convert options to standardized format - only use options after client hydration
+  const formattedOptions: Option[] = isClient ? options.map(option => {
     if (type === 'company') {
       const company = option as CompanyDetails;
       return {
@@ -55,7 +62,7 @@ const SavedOptionsDropdown: React.FC<SavedOptionsDropdownProps> = ({
         defaultPrice: item.defaultPrice,
       };
     }
-  });
+  }) : [];
 
   // Filter options based on search term
   const filteredOptions = formattedOptions.filter(option =>
@@ -80,12 +87,17 @@ const SavedOptionsDropdown: React.FC<SavedOptionsDropdownProps> = ({
     onSelect(option.value, option.secondaryValue, option.defaultPrice);
     setIsOpen(false);
     setSearchTerm('');
+    
+    // Track analytics
+    trackSavedDataUsed(type, 'selected');
   };
 
   const handleSaveClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onSave) {
       onSave();
+      // Track analytics
+      trackSavedDataUsed(type, 'saved');
     }
     setIsOpen(false);
   };
@@ -93,7 +105,7 @@ const SavedOptionsDropdown: React.FC<SavedOptionsDropdownProps> = ({
   const hasValidInput = value.trim().length > 0 && 
     (type === 'item' || (secondaryValue && secondaryValue.trim().length > 0));
 
-  const showSaveOption = onSave && hasValidInput && !filteredOptions.some(option => 
+  const showSaveOption = onSave && hasValidInput && isClient && !filteredOptions.some(option => 
     option.value.toLowerCase() === value.toLowerCase() &&
     (type === 'item' || option.secondaryValue?.toLowerCase() === secondaryValue?.toLowerCase())
   );
@@ -115,7 +127,7 @@ const SavedOptionsDropdown: React.FC<SavedOptionsDropdownProps> = ({
           {value || placeholder}
         </span>
         <div className="flex items-center gap-2">
-          {formattedOptions.length > 0 && (
+          {isClient && formattedOptions.length > 0 && (
             <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
               {formattedOptions.length}
             </span>

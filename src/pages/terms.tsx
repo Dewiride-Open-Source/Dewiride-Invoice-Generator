@@ -29,63 +29,145 @@ export default function Terms() {
             <div className="prose max-w-none">
               <h2 className="text-2xl font-semibold text-gray-800 mb-4">Agreement to Terms</h2>
               <p className="text-gray-600 mb-6">
-                By accessing and using Dewiride Technologies Invoice Generator, you accept and agree to be bound by the terms 
-                and provision of this agreement.
+                By accessing and using the Dewiride Technologies Invoice Generator available at https://invoice.dewiride.com, 
+                you accept and agree to be bound by the terms and provisions of this agreement.
               </p>
 
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Use License</h3>
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">Service Description</h2>
               <p className="text-gray-600 mb-4">
-                Permission is granted to temporarily use Dewiride Technologies Invoice Generator for personal and commercial use. 
-                This is the grant of a license, not a transfer of title, and under this license you may:
+                Dewiride Technologies provides a free online invoice generator that allows users to:
               </p>
               <ul className="list-disc pl-6 text-gray-600 mb-6 space-y-2">
-                <li>Create unlimited invoices for your business</li>
-                <li>Download and use generated PDF invoices</li>
-                <li>Use the service for commercial purposes</li>
+                <li>Create professional invoices with customizable details</li>
+                <li>Generate and download high-quality PDF invoices</li>
+                <li>Save and reuse company and item information locally in your browser</li>
+                <li>Support multiple currencies with automatic formatting</li>
+                <li>Access the service without registration or account creation</li>
+                <li>Manage saved data through an integrated data manager</li>
+                <li>Real-time invoice preview with live updates</li>
+                <li>Session persistence to prevent data loss</li>
               </ul>
 
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Restrictions</h3>
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">Acceptable Use</h2>
+              
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">Permitted Uses</h3>
+              <p className="text-gray-600 mb-4">You may use our service to:</p>
+              <ul className="list-disc pl-6 text-gray-600 mb-6 space-y-2">
+                <li>Create unlimited invoices for personal and commercial use</li>
+                <li>Download and use generated PDF invoices for business purposes</li>
+                <li>Save company and item data locally for convenience and efficiency</li>
+                <li>Use all features of the service for legitimate business activities</li>
+                <li>Access and manage your locally stored data</li>
+                <li>Use the service across different currencies and regions</li>
+              </ul>
+
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">Prohibited Uses</h3>
               <p className="text-gray-600 mb-4">You may not:</p>
               <ul className="list-disc pl-6 text-gray-600 mb-6 space-y-2">
-                <li>Attempt to reverse engineer or copy the service</li>
-                <li>Remove any copyright or other proprietary notations</li>
-                <li>Use the service for any illegal purposes</li>
-                <li>Attempt to gain unauthorized access to our systems</li>
+                <li>Use the service for any illegal, fraudulent, or deceptive purposes</li>
+                <li>Create false or misleading invoices</li>
+                <li>Attempt to reverse engineer, copy, or replicate the service</li>
+                <li>Remove any copyright, trademark, or other proprietary notices</li>
+                <li>Attempt to gain unauthorized access to our systems or other users' data</li>
+                <li>Use automated tools to abuse or overload our service</li>
+                <li>Violate any applicable laws or regulations</li>
+                <li>Interfere with or disrupt the service or servers</li>
+                <li>Use the service to send spam or unsolicited communications</li>
               </ul>
 
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Disclaimer</h3>
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">Data and Privacy</h2>
+              <p className="text-gray-600 mb-4">
+                By using our service, you acknowledge that:
+              </p>
+              <ul className="list-disc pl-6 text-gray-600 mb-6 space-y-2">
+                <li>Your invoice data is stored locally in your browser and not transmitted to our servers</li>
+                <li>We use Google Analytics to collect anonymous usage statistics (no personal data)</li>
+                <li>We collect analytics data as described in our Privacy Policy</li>
+                <li>You are responsible for the accuracy of your invoice information</li>
+                <li>You can clear your locally stored data at any time through the data manager</li>
+                <li>Your company details and invoice content remain completely private</li>
+              </ul>
+
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">Analytics and Tracking</h2>
+              <p className="text-gray-600 mb-4">
+                We use Google Analytics to understand how users interact with our service. This helps us improve 
+                the user experience. The analytics data collected includes:
+              </p>
+              <ul className="list-disc pl-6 text-gray-600 mb-6 space-y-2">
+                <li>General usage patterns (form completion, PDF downloads)</li>
+                <li>Currency preferences and invoice amounts (for statistical analysis)</li>
+                <li>Feature usage (saved data management, form progress)</li>
+                <li>Page engagement metrics</li>
+              </ul>
               <p className="text-gray-600 mb-6">
-                The materials on Invoice Generator Pro are provided on an 'as is' basis. Invoice Generator Pro 
-                makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties 
-                including without limitation, implied warranties or conditions of merchantability, fitness for a 
-                particular purpose, or non-infringement of intellectual property or other violation of rights.
+                <strong>Important:</strong> We do NOT collect any personally identifiable information, 
+                company names, addresses, item descriptions, or any content from your invoices.
               </p>
 
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Limitations</h3>
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">Intellectual Property</h2>
               <p className="text-gray-600 mb-6">
-                In no event shall Invoice Generator Pro or its suppliers be liable for any damages (including, 
-                without limitation, damages for loss of data or profit, or due to business interruption) arising 
-                out of the use or inability to use the materials on Invoice Generator Pro, even if Invoice Generator Pro 
-                or an authorized representative has been notified orally or in writing of the possibility of such damage.
+                The Dewiride Technologies Invoice Generator, including its design, code, features, and content, 
+                is owned by Dewiride Technologies Private Limited and protected by copyright and other intellectual 
+                property laws. You retain ownership of any content you create using our service.
               </p>
 
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Accuracy of Materials</h3>
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">Service Availability</h2>
               <p className="text-gray-600 mb-6">
-                The materials appearing on Invoice Generator Pro could include technical, typographical, or photographic 
-                errors. Invoice Generator Pro does not warrant that any of the materials on its website are accurate, 
-                complete, or current.
+                We strive to maintain high availability of our service but cannot guarantee uninterrupted access. 
+                We may temporarily suspend the service for maintenance, updates, or other technical reasons. 
+                We reserve the right to modify or discontinue features at any time.
               </p>
 
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Modifications</h3>
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">Disclaimer of Warranties</h3>
               <p className="text-gray-600 mb-6">
-                Invoice Generator Pro may revise these terms of service at any time without notice. By using this 
-                website, you are agreeing to be bound by the then current version of these terms of service.
+                The Dewiride Technologies Invoice Generator is provided on an "as is" and "as available" basis. 
+                We make no warranties, expressed or implied, including but not limited to warranties of merchantability, 
+                fitness for a particular purpose, or non-infringement of intellectual property rights.
               </p>
 
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Governing Law</h3>
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">Limitation of Liability</h3>
               <p className="text-gray-600 mb-6">
-                These terms and conditions are governed by and construed in accordance with the laws and you 
-                irrevocably submit to the exclusive jurisdiction of the courts in that state or location.
+                In no event shall Dewiride Technologies Private Limited be liable for any direct, indirect, 
+                incidental, special, consequential, or punitive damages, including but not limited to loss of 
+                profits, data, or business interruption, arising out of your use or inability to use our service.
+              </p>
+
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">User Responsibilities</h3>
+              <p className="text-gray-600 mb-4">You are responsible for:</p>
+              <ul className="list-disc pl-6 text-gray-600 mb-6 space-y-2">
+                <li>The accuracy and completeness of information in your invoices</li>
+                <li>Compliance with applicable tax laws and regulations</li>
+                <li>Ensuring your invoices meet legal requirements in your jurisdiction</li>
+                <li>Maintaining backups of important invoice data</li>
+              </ul>
+
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">Modifications to Terms</h3>
+              <p className="text-gray-600 mb-6">
+                Dewiride Technologies may revise these terms of service at any time by updating this page. 
+                Your continued use of the service after changes constitutes acceptance of the modified terms.
+              </p>
+
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">Governing Law and Jurisdiction</h3>
+              <p className="text-gray-600 mb-6">
+                These terms are governed by the laws of India. Any disputes arising from your use of this 
+                service will be subject to the exclusive jurisdiction of the courts in India.
+              </p>
+
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">Contact Information</h3>
+              <p className="text-gray-600 mb-6">
+                If you have questions about these Terms of Service, please contact us at:
+                <br />
+                <strong>Dewiride Technologies Private Limited</strong>
+                <br />
+                Website: <a href="https://dewiride.com" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">https://dewiride.com</a>
+                <br />
+                Service URL: <a href="https://invoice.dewiride.com" className="text-blue-600 hover:underline">https://invoice.dewiride.com</a>
+              </p>
+
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">Severability</h3>
+              <p className="text-gray-600 mb-6">
+                If any provision of these terms is found to be unenforceable or invalid, the remaining 
+                provisions will continue to be valid and enforceable.
               </p>
             </div>
 

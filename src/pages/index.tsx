@@ -6,6 +6,7 @@ import InvoicePreview from '../components/InvoicePreview';
 import DownloadPDFButton from '../components/DownloadPDFButtonNew';
 import SavedDataManager from '../components/SavedDataManager';
 import { saveFromCompany, saveToCompany, saveItemDescription } from '../utils/localStorage';
+import { trackSavedDataManagerOpened, trackFormProgress, trackInvoiceGenerated } from '../utils/analytics';
 
 const defaultInvoice: InvoiceData = {
   fromName: '',
@@ -23,18 +24,7 @@ const defaultInvoice: InvoiceData = {
 };
 
 export default function Home() {
-  const [invoice, setInvoice] = useState<InvoiceData>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = sessionStorage.getItem('invoice-data');
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {}
-      }
-    }
-    return defaultInvoice;
-  });
-
+  const [invoice, setInvoice] = useState<InvoiceData>(defaultInvoice);
   const [showSavedDataManager, setShowSavedDataManager] = useState(false);
   
   // Refs to store timeout IDs for debouncing
@@ -45,6 +35,20 @@ export default function Home() {
   }>({
     items: new Map(),
   });
+
+  // Load saved invoice data only on client side to prevent hydration mismatch
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('invoice-data');
+      if (saved) {
+        try {
+          setInvoice(JSON.parse(saved));
+        } catch {
+          // If parsing fails, keep default invoice
+        }
+      }
+    }
+  }, []);
 
   // Auto-save to localStorage when specific fields are updated with proper debouncing
   const autoSaveCompaniesAndItems = useCallback((newInvoice: InvoiceData, prevInvoice?: InvoiceData) => {
@@ -117,10 +121,49 @@ export default function Home() {
   const handleInvoiceChange = useCallback((newInvoice: InvoiceData) => {
     autoSaveCompaniesAndItems(newInvoice, invoice);
     setInvoice(newInvoice);
+    
+    // Track form progress for analytics
+    if (newInvoice.fromName && newInvoice.fromAddress && newInvoice.toName && newInvoice.toAddress) {
+      if (!invoice.fromName || !invoice.fromAddress || !invoice.toName || !invoice.toAddress) {
+        trackFormProgress('basic_info');
+      }
+    }
+    
+    if (newInvoice.invoiceNumber && newInvoice.invoiceDate && newInvoice.dueDate) {
+      if (!invoice.invoiceNumber || !invoice.invoiceDate || !invoice.dueDate) {
+        trackFormProgress('invoice_details');
+      }
+    }
+    
+    if (newInvoice.items.some(item => item.description && item.quantity > 0 && item.price > 0)) {
+      if (!invoice.items.some(item => item.description && item.quantity > 0 && item.price > 0)) {
+        trackFormProgress('items_added');
+      }
+    }
+    
+    // Track complete invoice generation
+    const isComplete = newInvoice.fromName && newInvoice.fromAddress && 
+                      newInvoice.toName && newInvoice.toAddress && 
+                      newInvoice.invoiceNumber && newInvoice.invoiceDate && 
+                      newInvoice.items.some(item => item.description && item.quantity > 0 && item.price > 0);
+    
+    const wasIncomplete = !invoice.fromName || !invoice.fromAddress || 
+                         !invoice.toName || !invoice.toAddress || 
+                         !invoice.invoiceNumber || !invoice.invoiceDate || 
+                         !invoice.items.some(item => item.description && item.quantity > 0 && item.price > 0);
+    
+    if (isComplete && wasIncomplete) {
+      trackFormProgress('complete');
+      const subtotal = newInvoice.items.reduce((sum, item) => sum + item.quantity * item.price, 0);
+      const total = subtotal + (subtotal * (newInvoice.tax / 100));
+      trackInvoiceGenerated(newInvoice.currency, newInvoice.items.length, total);
+    }
   }, [invoice, autoSaveCompaniesAndItems]);
 
   useEffect(() => {
-    sessionStorage.setItem('invoice-data', JSON.stringify(invoice));
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('invoice-data', JSON.stringify(invoice));
+    }
   }, [invoice]);
 
   // Cleanup timeouts on unmount
@@ -236,7 +279,10 @@ export default function Home() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-semibold text-gray-800">Create Your Invoice</h2>
               <button
-                onClick={() => setShowSavedDataManager(true)}
+                onClick={() => {
+                  setShowSavedDataManager(true);
+                  trackSavedDataManagerOpened();
+                }}
                 className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
                 title="Manage saved companies and items"
               >

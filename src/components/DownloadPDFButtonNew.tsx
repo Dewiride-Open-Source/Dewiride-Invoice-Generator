@@ -2,6 +2,7 @@ import React from 'react';
 import { pdf } from '@react-pdf/renderer';
 import InvoicePDF from './InvoicePDF';
 import { InvoiceData } from './InvoiceForm';
+import { trackPDFDownload } from '../utils/analytics';
 
 interface DownloadPDFButtonProps {
   data: InvoiceData;
@@ -16,6 +17,12 @@ const DownloadPDFButton: React.FC<DownloadPDFButtonProps> = ({ data }) => {
     link.download = `invoice-${data.invoiceNumber || 'draft'}.pdf`;
     link.click();
     URL.revokeObjectURL(url);
+    
+    // Track PDF download event
+    const subtotal = data.items.reduce((sum, item) => sum + item.quantity * item.price, 0);
+    const taxAmount = subtotal * (data.tax / 100);
+    const total = subtotal + taxAmount;
+    trackPDFDownload(data.currency, total);
   };
 
   return (

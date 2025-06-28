@@ -10,6 +10,7 @@ import {
   CompanyDetails,
   ItemDescription,
 } from '../utils/localStorage';
+import { trackCurrencyChange } from '../utils/analytics';
 
 export interface InvoiceItem {
   description: string;
@@ -39,15 +40,22 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
   const [fromCompanies, setFromCompanies] = useState<CompanyDetails[]>([]);
   const [toCompanies, setToCompanies] = useState<CompanyDetails[]>([]);
   const [itemDescriptions, setItemDescriptions] = useState<ItemDescription[]>([]);
+  const [isClient, setIsClient] = useState(false);
 
-  // Load saved data on mount
+  // Load saved data only on client side to prevent hydration mismatch
   useEffect(() => {
+    setIsClient(true);
     setFromCompanies(getFromCompanies());
     setToCompanies(getToCompanies());
     setItemDescriptions(getItemDescriptions());
   }, []);
 
   const handleFieldChange = (field: keyof InvoiceData, value: any) => {
+    // Track currency changes
+    if (field === 'currency' && value !== data.currency) {
+      trackCurrencyChange(value);
+    }
+    
     onChange({ ...data, [field]: value });
   };
 
@@ -90,14 +98,18 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
   const handleSaveFromCompany = () => {
     if (data.fromName && data.fromAddress) {
       saveFromCompany(data.fromName, data.fromAddress);
-      setFromCompanies(getFromCompanies());
+      if (isClient) {
+        setFromCompanies(getFromCompanies());
+      }
     }
   };
 
   const handleSaveToCompany = () => {
     if (data.toName && data.toAddress) {
       saveToCompany(data.toName, data.toAddress);
-      setToCompanies(getToCompanies());
+      if (isClient) {
+        setToCompanies(getToCompanies());
+      }
     }
   };
 
@@ -105,7 +117,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
     const item = data.items[index];
     if (item.description) {
       saveItemDescription(item.description, item.price > 0 ? item.price : undefined);
-      setItemDescriptions(getItemDescriptions());
+      if (isClient) {
+        setItemDescriptions(getItemDescriptions());
+      }
     }
   };
 
