@@ -249,9 +249,20 @@ export default function Home() {
       <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50">
         {/* Header Section with Enhanced SEO */}
         <header className="text-center mb-8">
-          <h1 className="text-4xl font-bold mb-4 text-gray-900">
-            Free Invoice Generator by Dewiride Technologies
-          </h1>
+          <div className="flex items-center justify-center mb-4">
+            <img 
+              src="/logo.svg" 
+              alt="Dewiride Technologies Logo" 
+              className="h-12 w-auto mr-3"
+              onError={(e) => {
+                // Fallback to PNG if SVG fails
+                e.currentTarget.src = '/logo.png';
+              }}
+            />
+            <h1 className="text-4xl font-bold text-gray-900">
+              Free Invoice Generator
+            </h1>
+          </div>
           <p className="text-lg text-gray-600 max-w-2xl mb-4">
             Create professional invoices in minutes with Dewiride Technologies' free online invoice generator. 
             Generate, customize, and download PDF invoices instantly with multiple currency support. 

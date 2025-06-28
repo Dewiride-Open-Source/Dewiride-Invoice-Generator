@@ -18,10 +18,20 @@ export default function Privacy() {
           <div className="bg-white rounded-lg shadow p-8">
             {/* Header */}
             <div className="text-center mb-8">
-              <Link href="/" className="text-blue-600 hover:text-blue-800 text-sm">
+              <Link href="/" className="text-blue-600 hover:text-blue-800 text-sm flex items-center justify-center mb-4">
                 ← Back to Invoice Generator
               </Link>
-              <h1 className="text-3xl font-bold text-gray-900 mt-4">Privacy Policy</h1>
+              <div className="flex items-center justify-center mb-4">
+                <img 
+                  src="/logo.svg" 
+                  alt="Dewiride Technologies Logo" 
+                  className="h-8 w-auto mr-3"
+                  onError={(e) => {
+                    e.currentTarget.src = '/logo.png';
+                  }}
+                />
+                <h1 className="text-3xl font-bold text-gray-900">Privacy Policy</h1>
+              </div>
               <p className="text-gray-600 mt-2">Last updated: June 28, 2025</p>
             </div>
 

@@ -28,6 +28,7 @@ export default function Document() {
         <meta property="og:url" content="https://invoice.dewiride.com" />
         <meta property="og:site_name" content="Dewiride Technologies Invoice Generator" />
         <meta property="og:locale" content="en_US" />
+        <meta property="og:logo" content="https://invoice.dewiride.com/logo.png" />
         
         {/* Twitter Card */}
         <meta name="twitter:card" content="summary_large_image" />
@@ -80,7 +81,7 @@ export default function Document() {
                 "url": "https://dewiride.com",
                 "logo": {
                   "@type": "ImageObject",
-                  "url": "https://dewiride.com/logo.png"
+                  "url": "https://invoice.dewiride.com/logo.png"
                 }
               },
               "publisher": {
@@ -89,7 +90,7 @@ export default function Document() {
                 "url": "https://dewiride.com",
                 "logo": {
                   "@type": "ImageObject",
-                  "url": "https://dewiride.com/logo.png"
+                  "url": "https://invoice.dewiride.com/logo.png"
                 }
               },
               "offers": {
@@ -228,9 +229,11 @@ export default function Document() {
         
         {/* Icons and App Integration */}
         <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32" />
+        <link rel="icon" href="/favicon-16x16.png" type="image/png" sizes="16x16" />
+        <link rel="icon" href="/logo.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href="/site.webmanifest" />
         
         {/* DNS Prefetch for performance */}
         <link rel="dns-prefetch" href="//fonts.googleapis.com" />
