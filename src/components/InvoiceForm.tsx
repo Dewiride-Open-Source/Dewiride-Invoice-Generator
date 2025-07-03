@@ -250,7 +250,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
         </div>
         
         <div className="overflow-x-auto">
-          <table className="w-full border border-gray-200 rounded-lg overflow-hidden">
+          <table className="w-full border border-gray-200 rounded-lg">
             <thead className="bg-gray-100">
               <tr>
                 <th className="font-semibold p-4 text-left text-gray-700 border-b">Description</th>
