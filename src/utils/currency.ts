@@ -13,5 +13,7 @@ export const getCurrencySymbol = (currency: string): string => {
 
 export const formatCurrency = (amount: number, currency: string): string => {
   const symbol = getCurrencySymbol(currency);
-  return `${symbol} ${amount.toFixed(2)}`;
+  // Format number with commas as thousand separators
+  const formattedAmount = amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${symbol} ${formattedAmount}`;
 };
