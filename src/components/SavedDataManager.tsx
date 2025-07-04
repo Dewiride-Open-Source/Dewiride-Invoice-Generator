@@ -71,6 +71,8 @@ const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose, on
 
   if (!isOpen) return null;
 
+  const hasAnyData = fromCompanies.length > 0 || toCompanies.length > 0 || itemDescriptions.length > 0;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
@@ -226,15 +228,17 @@ const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose, on
         {/* Footer */}
         <div className="border-t border-gray-200 p-6">
           <div className="flex justify-between items-center">
-            <button
-              onClick={handleClearAll}
-              className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm"
-            >
-              Clear All Data
-            </button>
+            {hasAnyData && (
+              <button
+                onClick={handleClearAll}
+                className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm"
+              >
+                Clear All Data
+              </button>
+            )}
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors ${!hasAnyData ? 'ml-auto' : ''}`}
             >
               Close
             </button>
