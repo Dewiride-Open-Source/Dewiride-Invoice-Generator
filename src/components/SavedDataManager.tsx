@@ -14,9 +14,10 @@ import {
 interface SavedDataManagerProps {
   isOpen: boolean;
   onClose: () => void;
+  onDataChanged?: () => void;
 }
 
-const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose }) => {
+const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose, onDataChanged }) => {
   const [fromCompanies, setFromCompanies] = useState<CompanyDetails[]>([]);
   const [toCompanies, setToCompanies] = useState<CompanyDetails[]>([]);
   const [itemDescriptions, setItemDescriptions] = useState<ItemDescription[]>([]);
@@ -37,22 +38,26 @@ const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose }) 
   const handleDeleteFromCompany = (id: string) => {
     deleteFromCompany(id);
     setFromCompanies(getFromCompanies());
+    onDataChanged?.();
   };
 
   const handleDeleteToCompany = (id: string) => {
     deleteToCompany(id);
     setToCompanies(getToCompanies());
+    onDataChanged?.();
   };
 
   const handleDeleteItemDescription = (id: string) => {
     deleteItemDescription(id);
     setItemDescriptions(getItemDescriptions());
+    onDataChanged?.();
   };
 
   const handleClearAll = () => {
     if (window.confirm('Are you sure you want to clear all saved data? This action cannot be undone.')) {
       clearAllSavedData();
       loadData();
+      onDataChanged?.();
     }
   };
 

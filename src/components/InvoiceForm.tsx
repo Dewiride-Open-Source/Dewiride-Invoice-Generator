@@ -34,9 +34,10 @@ export interface InvoiceData {
 interface InvoiceFormProps {
   data: InvoiceData;
   onChange: (data: InvoiceData) => void;
+  refreshTrigger?: number;
 }
 
-const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
+const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange, refreshTrigger }) => {
   const [fromCompanies, setFromCompanies] = useState<CompanyDetails[]>([]);
   const [toCompanies, setToCompanies] = useState<CompanyDetails[]>([]);
   const [itemDescriptions, setItemDescriptions] = useState<ItemDescription[]>([]);
@@ -49,6 +50,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
     setToCompanies(getToCompanies());
     setItemDescriptions(getItemDescriptions());
   }, []);
+
+  // Refresh saved data when trigger changes
+  useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      setFromCompanies(getFromCompanies());
+      setToCompanies(getToCompanies());
+      setItemDescriptions(getItemDescriptions());
+    }
+  }, [refreshTrigger]);
 
   const handleFieldChange = (field: keyof InvoiceData, value: any) => {
     // Track currency changes
@@ -135,16 +145,18 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">From Company</label>
               <div className="space-y-2">
-                <SavedOptionsDropdown
-                  value={data.fromName}
-                  secondaryValue={data.fromAddress}
-                  onSelect={handleFromCompanySelect}
-                  onSave={handleSaveFromCompany}
-                  options={fromCompanies}
-                  placeholder="Select or enter company name"
-                  type="company"
-                  className="mb-2"
-                />
+                {fromCompanies.length > 0 && (
+                  <SavedOptionsDropdown
+                    value={data.fromName}
+                    secondaryValue={data.fromAddress}
+                    onSelect={handleFromCompanySelect}
+                    onSave={handleSaveFromCompany}
+                    options={fromCompanies}
+                    placeholder="Select or enter company name"
+                    type="company"
+                    className="mb-2"
+                  />
+                )}
                 <input 
                   type="text" 
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
@@ -169,16 +181,18 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">To Company</label>
               <div className="space-y-2">
-                <SavedOptionsDropdown
-                  value={data.toName}
-                  secondaryValue={data.toAddress}
-                  onSelect={handleToCompanySelect}
-                  onSave={handleSaveToCompany}
-                  options={toCompanies}
-                  placeholder="Select or enter client name"
-                  type="company"
-                  className="mb-2"
-                />
+                {toCompanies.length > 0 && (
+                  <SavedOptionsDropdown
+                    value={data.toName}
+                    secondaryValue={data.toAddress}
+                    onSelect={handleToCompanySelect}
+                    onSave={handleSaveToCompany}
+                    options={toCompanies}
+                    placeholder="Select or enter client name"
+                    type="company"
+                    className="mb-2"
+                  />
+                )}
                 <input 
                   type="text" 
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
@@ -265,21 +279,27 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
                 <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                   <td className="p-4">
                     <div className="space-y-2">
-                      <SavedOptionsDropdown
-                        value={item.description}
-                        onSelect={(description, _, defaultPrice) => handleItemDescriptionSelect(idx, description, _, defaultPrice)}
-                        onSave={() => handleSaveItemDescription(idx)}
-                        options={itemDescriptions}
-                        placeholder="Select or enter item description"
-                        type="item"
-                        className="mb-2"
-                      />
+                      {itemDescriptions.length > 0 && (
+                        <SavedOptionsDropdown
+                          value={item.description}
+                          onSelect={(description, _, defaultPrice) => handleItemDescriptionSelect(idx, description, _, defaultPrice)}
+                          onSave={() => handleSaveItemDescription(idx)}
+                          options={itemDescriptions}
+                          placeholder="Select or enter item description"
+                          type="item"
+                          className="mb-2"
+                        />
+                      )}
                       <input
                         type="text"
                         className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
                         placeholder="Item description"
                         value={item.description}
                         onChange={e => handleItemChange(idx, 'description', e.target.value)}
+                        onBlur={() => handleSaveItemDescription(idx)}
+                        maxLength={100}
+                        autoComplete="off"
+                        aria-label="Item description"
                       />
                     </div>
                   </td>

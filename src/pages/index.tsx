@@ -26,6 +26,7 @@ const defaultInvoice: InvoiceData = {
 export default function Home() {
   const [invoice, setInvoice] = useState<InvoiceData>(defaultInvoice);
   const [showSavedDataManager, setShowSavedDataManager] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   // Refs to store timeout IDs for debouncing
   const saveTimeoutsRef = useRef<{
@@ -305,7 +306,8 @@ export default function Home() {
             </div>
             <InvoiceForm 
               data={invoice} 
-              onChange={handleInvoiceChange} 
+              onChange={handleInvoiceChange}
+              refreshTrigger={refreshTrigger}
             />
           </section>
           <section className="flex-1 bg-white rounded shadow p-4" aria-label="Invoice Preview">
@@ -517,6 +519,7 @@ export default function Home() {
         <SavedDataManager
           isOpen={showSavedDataManager}
           onClose={() => setShowSavedDataManager(false)}
+          onDataChanged={() => setRefreshTrigger(prev => prev + 1)}
         />
       </div>
     </>
