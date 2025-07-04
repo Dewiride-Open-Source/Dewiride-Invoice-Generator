@@ -22,6 +22,7 @@ const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose, on
   const [toCompanies, setToCompanies] = useState<CompanyDetails[]>([]);
   const [itemDescriptions, setItemDescriptions] = useState<ItemDescription[]>([]);
   const [activeTab, setActiveTab] = useState<'from' | 'to' | 'items'>('from');
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -54,11 +55,18 @@ const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose, on
   };
 
   const handleClearAll = () => {
-    if (window.confirm('Are you sure you want to clear all saved data? This action cannot be undone.')) {
-      clearAllSavedData();
-      loadData();
-      onDataChanged?.();
-    }
+    setShowConfirmDialog(true);
+  };
+
+  const confirmClearAll = () => {
+    clearAllSavedData();
+    loadData();
+    onDataChanged?.();
+    setShowConfirmDialog(false);
+  };
+
+  const cancelClearAll = () => {
+    setShowConfirmDialog(false);
   };
 
   if (!isOpen) return null;
@@ -232,6 +240,53 @@ const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose, on
             </button>
           </div>
         </div>
+
+        {/* Confirmation Dialog */}
+        {showConfirmDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+              <div className="p-6">
+                <div className="flex items-center mb-4">
+                  <div className="flex-shrink-0">
+                    <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.732 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  <div className="ml-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Clear All Saved Data</h3>
+                  </div>
+                </div>
+                <div className="mb-6">
+                  <p className="text-gray-600">
+                    Are you sure you want to clear all saved data? This will permanently delete:
+                  </p>
+                  <ul className="mt-3 text-sm text-gray-600 space-y-1">
+                    <li>• {fromCompanies.length} saved "From" companies</li>
+                    <li>• {toCompanies.length} saved "To" companies</li>
+                    <li>• {itemDescriptions.length} saved item descriptions</li>
+                  </ul>
+                  <p className="mt-3 text-sm font-medium text-red-600">
+                    This action cannot be undone.
+                  </p>
+                </div>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={cancelClearAll}
+                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmClearAll}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    Clear All Data
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
