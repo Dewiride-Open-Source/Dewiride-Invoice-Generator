@@ -1,32 +1,37 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
   reactStrictMode: true,
-  
-  // Azure Static Web Apps configuration
+
+  // --- Static export for Azure Static Web Apps ---
+  // `next build` writes build internals to .next (the default distDir) and the
+  // deployable HTML/CSS/JS to out/.
+  //
+  // Do NOT re-add `distDir: 'out'`. Next 16 has `next dev` write to
+  // <distDir>/dev and hold a lockfile at <distDir>/lock, and `next build` puts
+  // server/, cache/, types/ and *-manifest.json in distDir. With distDir set
+  // to 'out', all of that lands in the folder Azure uploads to the public CDN.
   output: 'export',
   trailingSlash: true,
   skipTrailingSlashRedirect: true,
-  distDir: 'out',
-  
-  // SEO and Performance optimizations
-  compress: true,
+
   poweredByHeader: false,
-  
-  // Image optimization (disabled for static export)
+
+  // Required: the default next/image loader needs a server to optimise through.
   images: {
     unoptimized: true,
   },
-  
-  // Experimental features for performance
+
   experimental: {
     scrollRestoration: true,
   },
-  
-  // Compiler optimizations
+
   compiler: {
-    removeConsole: process.env.NODE_ENV === 'production',
+    // Keep error/warn -- DownloadPDFButton reports PDF generation failures
+    // through console.error, and stripping that would make production
+    // failures silent.
+    removeConsole:
+      process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
   },
 };
 

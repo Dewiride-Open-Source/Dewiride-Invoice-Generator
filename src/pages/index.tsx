@@ -1,527 +1,493 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import InvoiceForm, { InvoiceData } from '../components/InvoiceForm';
+import InvoiceForm from '../components/InvoiceForm';
 import InvoicePreview from '../components/InvoicePreview';
-import DownloadPDFButton from '../components/DownloadPDFButtonNew';
+import DownloadPDFButton from '../components/DownloadPDFButton';
 import SavedDataManager from '../components/SavedDataManager';
-import { saveFromCompany, saveToCompany, saveItemDescription } from '../utils/localStorage';
-import { trackSavedDataManagerOpened, trackFormProgress, trackInvoiceGenerated } from '../utils/analytics';
+import SiteHeader from '../components/SiteHeader';
+import { LiveRegionProvider } from '../components/a11y/LiveRegion';
+import { buttonClass } from '../components/fields';
+import { BoltIcon, CurrencyIcon, DatabaseIcon, DocumentIcon, FreeIcon } from '../components/icons';
+import { saveFromCompany, saveItemDescription, saveToCompany } from '../utils/savedData';
+import {
+  trackFormProgress,
+  trackInvoiceGenerated,
+  trackSavedDataManagerOpened,
+} from '../utils/analytics';
+import { computeTotals } from '../utils/totals';
+import { formatCurrency } from '../utils/currency';
+import {
+  InvoiceData,
+  createEmptyInvoice,
+  getReadiness,
+  normaliseInvoice,
+  todayIso,
+} from '../types/invoice';
 
-const defaultInvoice: InvoiceData = {
-  fromName: '',
-  fromAddress: '',
-  toName: '',
-  toAddress: '',
-  invoiceNumber: '',
-  invoiceDate: '',
-  dueDate: '',
-  items: [
-    { description: '', quantity: 1, price: 0 },
+const SITE_URL = 'https://invoice.dewiride.com';
+const AUTOSAVE_DELAY_MS = 2000;
+
+const FEATURES = [
+  {
+    Icon: FreeIcon,
+    title: '100% Free',
+    body: 'No hidden fees, no subscriptions, no limits. Create unlimited professional invoices completely free.',
+  },
+  {
+    Icon: DocumentIcon,
+    title: 'Professional PDF',
+    body: 'Download high-quality PDF invoices with professional formatting ready to send to your clients.',
+  },
+  {
+    Icon: CurrencyIcon,
+    title: 'Multiple Currencies',
+    body: 'Support for USD, EUR, GBP, INR, and more currencies for global business operations.',
+  },
+  {
+    Icon: BoltIcon,
+    title: 'Instant Generation',
+    body: 'Create and download your invoice in seconds. Real-time preview as you type.',
+  },
+] as const;
+
+const STEPS = [
+  [
+    'Enter Your Business Details',
+    'Fill in your company name, address, and contact information in the “From” section.',
   ],
-  tax: 0,
-  currency: 'INR',
+  ['Add Client Information', 'Enter your client’s name and billing address in the “To” section.'],
+  ['Set Invoice Details', 'Add invoice number, date, and due date for payment.'],
+  [
+    'Add Items & Services',
+    'List your products or services with descriptions, quantities, and prices.',
+  ],
+  ['Set Currency & Tax', 'Choose your preferred currency and add tax percentage if applicable.'],
+  ['Download PDF', 'Click “Download PDF” to get your professional invoice ready to send.'],
+] as const;
+
+/**
+ * FAQ copy is defined once and drives both the visible list and the FAQPage
+ * JSON-LD. The two used to be maintained separately and had already drifted --
+ * the fourth question in the structured data did not match the fourth question
+ * on the page, which is exactly the mismatch Google penalises.
+ */
+const FAQS = [
+  {
+    q: 'Is the invoice generator really free to use?',
+    a: 'Yes, our invoice generator is completely free with no hidden costs, subscriptions, or limits. You can create unlimited professional invoices without any charges.',
+  },
+  {
+    q: 'What currencies does the invoice generator support?',
+    a: 'We support multiple currencies including USD (US Dollar), EUR (Euro), GBP (British Pound), INR (Indian Rupee), and many more to accommodate global business needs.',
+  },
+  {
+    q: 'Do I need to create an account or register?',
+    a: 'No registration is required. You can start creating professional invoices immediately without providing any personal information or creating an account.',
+  },
+  {
+    q: 'Is my invoice data saved automatically?',
+    a: 'Yes. Your invoice is saved in your browser session so you will not lose progress if you refresh the page, and the businesses, clients and item descriptions you reuse are stored locally for autocomplete. Nothing is ever uploaded to a server.',
+  },
+] as const;
+
+const FAQ_SCHEMA = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: FAQS.map(({ q, a }) => ({
+    '@type': 'Question',
+    name: q,
+    acceptedAnswer: { '@type': 'Answer', text: a },
+  })),
 };
 
 export default function Home() {
-  const [invoice, setInvoice] = useState<InvoiceData>(defaultInvoice);
+  const [invoice, setInvoice] = useState<InvoiceData>(createEmptyInvoice);
   const [showSavedDataManager, setShowSavedDataManager] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-  
-  // Refs to store timeout IDs for debouncing
-  const saveTimeoutsRef = useRef<{
-    fromCompany?: NodeJS.Timeout;
-    toCompany?: NodeJS.Timeout;
-    items: Map<number, NodeJS.Timeout>;
-  }>({
-    items: new Map(),
-  });
+  const [mobileView, setMobileView] = useState<'edit' | 'preview'>('edit');
 
-  // Load saved invoice data only on client side to prevent hydration mismatch
+  const saveTimeouts = useRef<{
+    fromCompany?: ReturnType<typeof setTimeout>;
+    toCompany?: ReturnType<typeof setTimeout>;
+    items: Map<string, ReturnType<typeof setTimeout>>;
+  }>({ items: new Map() });
+
+  // Restores the draft and defaults the invoice date to today.
+  //
+  // Both have to happen after mount rather than in the useState initialiser:
+  // this is a static export, so an initialiser runs at build time as well, and
+  // it would bake the build date into the HTML and then mismatch on hydration.
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = sessionStorage.getItem('invoice-data');
-      if (saved) {
-        try {
-          setInvoice(JSON.parse(saved));
-        } catch {
-          // If parsing fails, keep default invoice
-        }
+    const saved = sessionStorage.getItem('invoice-data');
+    let restored: InvoiceData | null = null;
+    if (saved) {
+      try {
+        restored = normaliseInvoice(JSON.parse(saved));
+      } catch {
+        // Unparseable draft: fall through to a fresh invoice.
       }
     }
+
+    const base = restored ?? createEmptyInvoice();
+    // Only fill an empty date, so a draft the user deliberately cleared or set
+    // is never overwritten.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setInvoice(base.invoiceDate ? base : { ...base, invoiceDate: todayIso() });
   }, []);
 
-  // Auto-save to localStorage when specific fields are updated with proper debouncing
-  const autoSaveCompaniesAndItems = useCallback((newInvoice: InvoiceData, prevInvoice?: InvoiceData) => {
-    // Only save if there are meaningful changes and both name and address are present
-    
-    // Save From company if both name and address are present and either is different from previous
-    if (newInvoice.fromName.trim() && newInvoice.fromAddress.trim()) {
-      const fromChanged = !prevInvoice || 
-          prevInvoice.fromName.trim() !== newInvoice.fromName.trim() || 
-          prevInvoice.fromAddress.trim() !== newInvoice.fromAddress.trim();
-      
-      if (fromChanged) {
-        // Clear previous timeout
-        if (saveTimeoutsRef.current.fromCompany) {
-          clearTimeout(saveTimeoutsRef.current.fromCompany);
-        }
-        
-        // Set new timeout
-        saveTimeoutsRef.current.fromCompany = setTimeout(() => {
-          saveFromCompany(newInvoice.fromName.trim(), newInvoice.fromAddress.trim());
-        }, 2000);
-      }
-    }
-
-    // Save To company if both name and address are present and either is different from previous
-    if (newInvoice.toName.trim() && newInvoice.toAddress.trim()) {
-      const toChanged = !prevInvoice || 
-          prevInvoice.toName.trim() !== newInvoice.toName.trim() || 
-          prevInvoice.toAddress.trim() !== newInvoice.toAddress.trim();
-      
-      if (toChanged) {
-        // Clear previous timeout
-        if (saveTimeoutsRef.current.toCompany) {
-          clearTimeout(saveTimeoutsRef.current.toCompany);
-        }
-        
-        // Set new timeout
-        saveTimeoutsRef.current.toCompany = setTimeout(() => {
-          saveToCompany(newInvoice.toName.trim(), newInvoice.toAddress.trim());
-        }, 2000);
-      }
-    }
-
-    // Save item descriptions that are meaningful and changed
-    newInvoice.items.forEach((item, index) => {
-      if (item.description.trim() && item.description.trim().length >= 3) {
-        const prevItem = prevInvoice?.items[index];
-        const descriptionChanged = !prevItem || prevItem.description.trim() !== item.description.trim();
-        const priceChanged = !prevItem || prevItem.price !== item.price;
-        
-        if (descriptionChanged || (priceChanged && item.price > 0)) {
-          // Clear previous timeout for this item
-          const existingTimeout = saveTimeoutsRef.current.items.get(index);
-          if (existingTimeout) {
-            clearTimeout(existingTimeout);
-          }
-          
-          // Set new timeout for this item
-          const newTimeout = setTimeout(() => {
-            saveItemDescription(item.description.trim(), item.price > 0 ? item.price : undefined);
-            saveTimeoutsRef.current.items.delete(index);
-          }, 2000);
-          
-          saveTimeoutsRef.current.items.set(index, newTimeout);
-        }
-      }
-    });
-  }, []);
-
-  const handleInvoiceChange = useCallback((newInvoice: InvoiceData) => {
-    autoSaveCompaniesAndItems(newInvoice, invoice);
-    setInvoice(newInvoice);
-    
-    // Track form progress for analytics
-    if (newInvoice.fromName && newInvoice.fromAddress && newInvoice.toName && newInvoice.toAddress) {
-      if (!invoice.fromName || !invoice.fromAddress || !invoice.toName || !invoice.toAddress) {
-        trackFormProgress('basic_info');
-      }
-    }
-    
-    if (newInvoice.invoiceNumber && newInvoice.invoiceDate && newInvoice.dueDate) {
-      if (!invoice.invoiceNumber || !invoice.invoiceDate || !invoice.dueDate) {
-        trackFormProgress('invoice_details');
-      }
-    }
-    
-    if (newInvoice.items.some(item => item.description && item.quantity > 0 && item.price > 0)) {
-      if (!invoice.items.some(item => item.description && item.quantity > 0 && item.price > 0)) {
-        trackFormProgress('items_added');
-      }
-    }
-    
-    // Track complete invoice generation
-    const isComplete = newInvoice.fromName && newInvoice.fromAddress && 
-                      newInvoice.toName && newInvoice.toAddress && 
-                      newInvoice.invoiceNumber && newInvoice.invoiceDate && 
-                      newInvoice.items.some(item => item.description && item.quantity > 0 && item.price > 0);
-    
-    const wasIncomplete = !invoice.fromName || !invoice.fromAddress || 
-                         !invoice.toName || !invoice.toAddress || 
-                         !invoice.invoiceNumber || !invoice.invoiceDate || 
-                         !invoice.items.some(item => item.description && item.quantity > 0 && item.price > 0);
-    
-    if (isComplete && wasIncomplete) {
-      trackFormProgress('complete');
-      const subtotal = newInvoice.items.reduce((sum, item) => sum + item.quantity * item.price, 0);
-      const total = subtotal + (subtotal * (newInvoice.tax / 100));
-      trackInvoiceGenerated(newInvoice.currency, newInvoice.items.length, total);
-    }
-  }, [invoice, autoSaveCompaniesAndItems]);
-
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('invoice-data', JSON.stringify(invoice));
-    }
+    sessionStorage.setItem('invoice-data', JSON.stringify(invoice));
   }, [invoice]);
 
-  // Cleanup timeouts on unmount
   useEffect(() => {
+    const timeouts = saveTimeouts.current;
     return () => {
-      if (saveTimeoutsRef.current.fromCompany) {
-        clearTimeout(saveTimeoutsRef.current.fromCompany);
-      }
-      if (saveTimeoutsRef.current.toCompany) {
-        clearTimeout(saveTimeoutsRef.current.toCompany);
-      }
-      saveTimeoutsRef.current.items.forEach(timeout => clearTimeout(timeout));
+      if (timeouts.fromCompany) clearTimeout(timeouts.fromCompany);
+      if (timeouts.toCompany) clearTimeout(timeouts.toCompany);
+      timeouts.items.forEach(clearTimeout);
     };
   }, []);
 
+  /**
+   * Debounced writes into the saved-data store. Without the delay, every
+   * keystroke would persist a half-typed company name.
+   */
+  const autoSave = useCallback((next: InvoiceData, previous: InvoiceData) => {
+    const schedule = (key: 'fromCompany' | 'toCompany', changed: boolean, run: () => void) => {
+      if (!changed) return;
+      clearTimeout(saveTimeouts.current[key]);
+      saveTimeouts.current[key] = setTimeout(run, AUTOSAVE_DELAY_MS);
+    };
+
+    if (next.fromName.trim() && next.fromAddress.trim()) {
+      schedule(
+        'fromCompany',
+        previous.fromName.trim() !== next.fromName.trim() ||
+          previous.fromAddress.trim() !== next.fromAddress.trim(),
+        () => saveFromCompany(next.fromName, next.fromAddress),
+      );
+    }
+
+    if (next.toName.trim() && next.toAddress.trim()) {
+      schedule(
+        'toCompany',
+        previous.toName.trim() !== next.toName.trim() ||
+          previous.toAddress.trim() !== next.toAddress.trim(),
+        () => saveToCompany(next.toName, next.toAddress),
+      );
+    }
+
+    for (const item of next.items) {
+      if (item.description.trim().length < 3) continue;
+      const before = previous.items.find((i) => i.id === item.id);
+      const changed =
+        !before ||
+        before.description.trim() !== item.description.trim() ||
+        (before.price !== item.price && item.price > 0);
+      if (!changed) continue;
+
+      clearTimeout(saveTimeouts.current.items.get(item.id));
+      saveTimeouts.current.items.set(
+        item.id,
+        setTimeout(() => {
+          saveItemDescription(item.description, item.price > 0 ? item.price : undefined);
+          saveTimeouts.current.items.delete(item.id);
+        }, AUTOSAVE_DELAY_MS),
+      );
+    }
+  }, []);
+
+  const handleInvoiceChange = useCallback(
+    (next: InvoiceData) => {
+      autoSave(next, invoice);
+      setInvoice(next);
+
+      const hasParties = (d: InvoiceData) =>
+        Boolean(d.fromName && d.fromAddress && d.toName && d.toAddress);
+      const hasMeta = (d: InvoiceData) => Boolean(d.invoiceNumber && d.invoiceDate && d.dueDate);
+      const hasItems = (d: InvoiceData) =>
+        d.items.some((item) => item.description && item.quantity > 0 && item.price > 0);
+      const complete = (d: InvoiceData) =>
+        hasParties(d) && Boolean(d.invoiceNumber && d.invoiceDate) && hasItems(d);
+
+      if (hasParties(next) && !hasParties(invoice)) trackFormProgress('basic_info');
+      if (hasMeta(next) && !hasMeta(invoice)) trackFormProgress('invoice_details');
+      if (hasItems(next) && !hasItems(invoice)) trackFormProgress('items_added');
+
+      if (complete(next) && !complete(invoice)) {
+        trackFormProgress('complete');
+        trackInvoiceGenerated(next.currency, next.items.length, computeTotals(next).total);
+      }
+    },
+    [autoSave, invoice],
+  );
+
+  const { total } = computeTotals(invoice);
+  const readiness = getReadiness(invoice);
+
   return (
-    <>
+    <LiveRegionProvider>
       <Head>
-        <title>Free Invoice Generator - Create Professional PDF Invoices Online | Dewiride Technologies</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-        <meta name="description" content="Generate professional invoices instantly with Dewiride Technologies' free online invoice maker. Create, customize and download PDF invoices with multiple currencies. Perfect for freelancers and small businesses. No registration required - start creating invoices now!" />
-        <meta name="keywords" content="free invoice generator, invoice maker, PDF invoice, business invoice, freelancer invoice, online invoicing, professional invoice template, tax invoice, billing software, small business tools, Dewiride Technologies" />
-        
-        {/* Enhanced Open Graph for better social sharing */}
-        <meta property="og:title" content="Free Invoice Generator - Create Professional PDF Invoices Online | Dewiride Technologies" />
-        <meta property="og:description" content="Generate professional invoices instantly with Dewiride Technologies' free online invoice maker. Multiple currencies supported. No registration required." />
-        <meta property="og:type" content="website" />
-        <meta property="og:image" content="https://invoice.dewiride.com/invoice-generator-preview.png" />
-        <meta property="og:url" content="https://invoice.dewiride.com" />
-        
-        {/* Enhanced Twitter Cards */}
-        <meta name="twitter:title" content="Free Invoice Generator - Create Professional PDF Invoices Online | Dewiride Technologies" />
-        <meta name="twitter:description" content="Generate professional invoices instantly with Dewiride Technologies' free online invoice maker. No registration required." />
-        <meta name="twitter:image" content="https://invoice.dewiride.com/invoice-generator-preview.png" />
-        <meta name="twitter:card" content="summary_large_image" />
-        
-        {/* Page-specific structured data */}
+        <title>Free Invoice Generator — Create Professional PDF Invoices Online | Dewiride</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta
+          name="description"
+          content="Generate professional invoices instantly with Dewiride's free online invoice maker. Create, customise and download PDF invoices with multiple currencies. No registration required."
+        />
+        <link rel="canonical" href={`${SITE_URL}/`} />
+        <meta
+          property="og:title"
+          content="Free Invoice Generator — Create Professional PDF Invoices Online"
+        />
+        <meta
+          property="og:description"
+          content="Generate professional invoices instantly. Free, no registration, multiple currencies, instant PDF download."
+        />
+        <meta property="og:url" content={`${SITE_URL}/`} />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "FAQPage",
-              "mainEntity": [
-                {
-                  "@type": "Question",
-                  "name": "Is the invoice generator really free?",
-                  "acceptedAnswer": {
-                    "@type": "Answer",
-                    "text": "Yes, our invoice generator is completely free to use. You can create unlimited invoices without any hidden fees or subscriptions."
-                  }
-                },
-                {
-                  "@type": "Question",
-                  "name": "What currencies are supported?",
-                  "acceptedAnswer": {
-                    "@type": "Answer",
-                    "text": "We support multiple currencies including USD, EUR, GBP, INR, and many more for global business needs."
-                  }
-                },
-                {
-                  "@type": "Question",
-                  "name": "Do I need to register to use the invoice generator?",
-                  "acceptedAnswer": {
-                    "@type": "Answer",
-                    "text": "No registration is required. You can start creating professional invoices immediately without creating an account."
-                  }
-                },
-                {
-                  "@type": "Question",
-                  "name": "What format are the invoices downloaded in?",
-                  "acceptedAnswer": {
-                    "@type": "Answer",
-                    "text": "All invoices are generated as high-quality PDF files that are ready to send to your clients."
-                  }
-                }
-              ]
-            })
-          }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_SCHEMA) }}
         />
       </Head>
-      
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50">
-        {/* Header Section with Enhanced SEO */}
-        <header className="text-center mb-8">
-          <div className="flex items-center justify-center mb-4">
-            <img 
-              src="/logo.svg" 
-              alt="Dewiride Technologies Logo" 
-              className="h-12 w-auto mr-3"
-              onError={(e) => {
-                // Fallback to PNG if SVG fails
-                e.currentTarget.src = '/logo.png';
-              }}
-            />
-            <h1 className="text-4xl font-bold text-gray-900">
-              Free Invoice Generator
-            </h1>
-          </div>
-          <p className="text-lg text-gray-600 max-w-2xl mb-4">
-            Create professional invoices in minutes with Dewiride Technologies' free online invoice generator. 
-            Generate, customize, and download PDF invoices instantly with multiple currency support. 
-            Perfect for freelancers, small businesses, and entrepreneurs. No registration required!
+
+      <a
+        href="#invoice-editor"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-brand focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-brand-fg"
+      >
+        Skip to the invoice editor
+      </a>
+
+      <SiteHeader>
+        <button
+          type="button"
+          onClick={() => {
+            setShowSavedDataManager(true);
+            trackSavedDataManagerOpened();
+          }}
+          className={`${buttonClass.secondary} px-3 py-2`}
+          data-testid="open-saved-data"
+        >
+          <DatabaseIcon className="size-4" />
+          <span className="hidden sm:inline">Saved data</span>
+          <span className="sr-only sm:hidden">Manage saved data</span>
+        </button>
+      </SiteHeader>
+
+      {/* pb-24 clears the sticky mobile action bar so the footer stays reachable. */}
+      <div className="mx-auto w-full max-w-7xl px-4 pb-24 sm:px-6 lg:pb-16">
+        <div className="py-8 sm:py-12">
+          <h1 className="text-3xl font-bold tracking-tight text-fg sm:text-4xl">
+            Free Invoice Generator
+          </h1>
+          <p className="mt-3 max-w-2xl text-base leading-relaxed text-fg-muted">
+            Create professional invoices in minutes with Dewiride Technologies&rsquo; free online
+            invoice generator. Generate, customise, and download PDF invoices instantly with
+            multiple currency support. Perfect for freelancers, small businesses, and entrepreneurs.
+            No registration required.
           </p>
-          <div className="text-sm text-gray-500 space-x-4">
-            <span className="inline-flex items-center">
-              ✓ 100% Free Forever
-            </span>
-            <span className="inline-flex items-center">
-              ✓ No Registration Required
-            </span>
-            <span className="inline-flex items-center">
-              ✓ Multiple Currencies
-            </span>
-            <span className="inline-flex items-center">
-              ✓ Professional PDF Output
-            </span>
-          </div>
-        </header>
-        
-        {/* Main Application Section */}
-        <main className="flex flex-col md:flex-row gap-8 w-full max-w-6xl mb-12">
-          <section className="flex-1 bg-white rounded shadow p-4" aria-label="Invoice Creation Form">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-semibold text-gray-800">Create Your Invoice</h2>
+          <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm text-fg-muted">
+            {[
+              '100% free forever',
+              'No registration',
+              'Multiple currencies',
+              'Professional PDF output',
+            ].map((item) => (
+              <li key={item} className="flex items-center gap-1.5">
+                <FreeIcon className="size-4 text-brand-text" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/*
+          Mobile gets a segmented control between editing and preview. Both
+          panels stay mounted (hidden, not unmounted), so focus, scroll position
+          and the form's store subscriptions survive a switch -- and the full
+          document is still there for crawlers.
+        */}
+        <div className="mb-4 lg:hidden">
+          <div
+            role="tablist"
+            aria-label="Invoice editor view"
+            className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-surface-sunken p-1"
+          >
+            {(['edit', 'preview'] as const).map((view) => (
               <button
-                onClick={() => {
-                  setShowSavedDataManager(true);
-                  trackSavedDataManagerOpened();
-                }}
-                className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
-                title="Manage saved companies and items"
+                key={view}
+                type="button"
+                role="tab"
+                id={`tab-${view}`}
+                aria-selected={mobileView === view}
+                aria-controls={`panel-${view}`}
+                onClick={() => setMobileView(view)}
+                className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                  mobileView === view ? 'bg-surface text-fg shadow-card' : 'text-fg-muted'
+                }`}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14-7l2 2-2 2m0 12l2-2-2-2" />
-                </svg>
-                Manage Saved Data
+                {view === 'edit' ? 'Edit' : 'Preview'}
               </button>
-            </div>
-            <InvoiceForm 
-              data={invoice} 
-              onChange={handleInvoiceChange}
-              refreshTrigger={refreshTrigger}
-            />
+            ))}
+          </div>
+        </div>
+
+        <main className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-8">
+          <section
+            id="panel-edit"
+            role="tabpanel"
+            aria-labelledby="tab-edit"
+            className={`card p-4 sm:p-6 ${mobileView === 'edit' ? '' : 'max-lg:hidden'}`}
+          >
+            <h2 id="invoice-editor" className="mb-1 text-lg font-semibold tracking-tight text-fg">
+              Create your invoice
+            </h2>
+            <p className="text-sm text-fg-muted">
+              Everything stays in your browser. Nothing is uploaded.
+            </p>
+
+            {/*
+              Readiness, stated rather than implied. The data attribute gives an
+              automated agent a deterministic "am I done?" without re-deriving
+              the rule, and role=status means a screen-reader user hears it
+              change instead of having to hunt for the empty field.
+            */}
+            <p
+              role="status"
+              data-testid="invoice-readiness"
+              data-invoice-complete={readiness.complete}
+              className={`mb-5 mt-3 rounded-lg border px-3 py-2 text-sm ${
+                readiness.complete
+                  ? 'border-border bg-brand-subtle text-brand-text'
+                  : 'border-border bg-surface-sunken text-fg-muted'
+              }`}
+            >
+              {readiness.complete
+                ? 'Ready to download.'
+                : `Still needed: ${readiness.missing.join(', ')}.`}
+            </p>
+            <InvoiceForm data={invoice} onChange={handleInvoiceChange} />
           </section>
-          <section className="flex-1 bg-white rounded shadow p-4" aria-label="Invoice Preview">
-            <h2 className="text-2xl font-semibold mb-4 text-gray-800">Invoice Preview</h2>
-            <div id="invoice-preview-pdf">
-              <InvoicePreview data={invoice} />
+
+          <section
+            id="panel-preview"
+            role="tabpanel"
+            aria-labelledby="tab-preview"
+            className={`card p-4 sm:p-5 lg:sticky lg:top-24 ${
+              mobileView === 'preview' ? '' : 'max-lg:hidden'
+            }`}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight text-fg">Invoice preview</h2>
+                <p className="mt-0.5 text-xs text-fg-muted">This is how your PDF will look.</p>
+              </div>
+              <div className="hidden lg:block">
+                <DownloadPDFButton data={invoice} />
+              </div>
             </div>
-            <div className="mt-4 flex justify-end">
-              <DownloadPDFButton data={invoice} />
-            </div>
+            <InvoicePreview data={invoice} />
           </section>
         </main>
-        
-        {/* Enhanced Features Section for SEO */}
-        <section className="w-full max-w-6xl mb-12 bg-white rounded-lg shadow p-8">
-          <h2 className="text-3xl font-bold text-center mb-8 text-gray-800">
-            Why Choose Dewiride Technologies' Free Invoice Generator?
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="text-center">
-              <div className="text-3xl mb-3">💯</div>
-              <h3 className="font-semibold text-gray-800 mb-2">100% Free</h3>
-              <p className="text-sm text-gray-600">
-                No hidden fees, no subscriptions, no limits. Create unlimited professional invoices completely free.
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl mb-3">📄</div>
-              <h3 className="font-semibold text-gray-800 mb-2">Professional PDF</h3>
-              <p className="text-sm text-gray-600">
-                Download high-quality PDF invoices with professional formatting ready to send to your clients.
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl mb-3">💰</div>
-              <h3 className="font-semibold text-gray-800 mb-2">Multiple Currencies</h3>
-              <p className="text-sm text-gray-600">
-                Support for USD, EUR, GBP, INR, and more currencies for global business operations.
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl mb-3">⚡</div>
-              <h3 className="font-semibold text-gray-800 mb-2">Instant Generation</h3>
-              <p className="text-sm text-gray-600">
-                Create and download your invoice in seconds. Real-time preview as you type.
-              </p>
-            </div>
-          </div>
-        </section>
-        
-        {/* SEO Content Section */}
-        <section className="w-full max-w-6xl mb-12 bg-white rounded-lg shadow p-8">
-          <h2 className="text-2xl font-bold mb-6 text-gray-800">
-            How to Create an Invoice Online - Simple Steps
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div>
-              <ol className="space-y-4 text-gray-700">
-                <li className="flex items-start">
-                  <span className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-semibold mr-3">1</span>
-                  <div>
-                    <strong>Enter Your Business Details:</strong> Fill in your company name, address, and contact information in the "From" section.
-                  </div>
-                </li>
-                <li className="flex items-start">
-                  <span className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-semibold mr-3">2</span>
-                  <div>
-                    <strong>Add Client Information:</strong> Enter your client's name and billing address in the "To" section.
-                  </div>
-                </li>
-                <li className="flex items-start">
-                  <span className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-semibold mr-3">3</span>
-                  <div>
-                    <strong>Set Invoice Details:</strong> Add invoice number, date, and due date for payment.
-                  </div>
-                </li>
-              </ol>
-            </div>
-            <div>
-              <ol className="space-y-4 text-gray-700" start={4}>
-                <li className="flex items-start">
-                  <span className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-semibold mr-3">4</span>
-                  <div>
-                    <strong>Add Items & Services:</strong> List your products or services with descriptions, quantities, and prices.
-                  </div>
-                </li>
-                <li className="flex items-start">
-                  <span className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-semibold mr-3">5</span>
-                  <div>
-                    <strong>Set Currency & Tax:</strong> Choose your preferred currency and add tax percentage if applicable.
-                  </div>
-                </li>
-                <li className="flex items-start">
-                  <span className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-semibold mr-3">6</span>
-                  <div>
-                    <strong>Download PDF:</strong> Click "Download PDF" to get your professional invoice ready to send.
-                  </div>
-                </li>
-              </ol>
-            </div>
-          </div>
-        </section>
-        
-        {/* FAQ Section for SEO */}
-        <section className="w-full max-w-6xl mb-12 bg-white rounded-lg shadow p-8">
-          <h2 className="text-2xl font-bold mb-6 text-gray-800">
-            Frequently Asked Questions About Our Invoice Generator
-          </h2>
-          <div className="space-y-6">
-            <div>
-              <h3 className="font-semibold text-gray-800 mb-2">Is the invoice generator really free to use?</h3>
-              <p className="text-gray-600">
-                Yes, our invoice generator is completely free with no hidden costs, subscriptions, or limits. 
-                You can create unlimited professional invoices without any charges.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-800 mb-2">What currencies does the invoice generator support?</h3>
-              <p className="text-gray-600">
-                We support multiple currencies including USD (US Dollar), EUR (Euro), GBP (British Pound), 
-                INR (Indian Rupee), and many more to accommodate global business needs.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-800 mb-2">Do I need to create an account or register?</h3>
-              <p className="text-gray-600">
-                No registration is required. You can start creating professional invoices immediately 
-                without providing any personal information or creating an account.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-800 mb-2">Are my invoice data saved automatically?</h3>
-              <p className="text-gray-600">
-                Yes, your invoice data is automatically saved in your browser session, so you won't lose 
-                your progress if you accidentally refresh the page.
-              </p>
-            </div>
-          </div>
-        </section>
-        
-        {/* Enhanced Footer with SEO Content */}
-        <footer className="w-full max-w-6xl text-center">
-          <div className="bg-white rounded-lg shadow p-8">
-            <h2 className="text-2xl font-bold mb-4 text-gray-800">
-              Start Creating Professional Invoices Today
-            </h2>
-            <p className="text-gray-600 mb-6 max-w-3xl mx-auto">
-              Join thousands of freelancers, consultants, and small business owners who trust Dewiride Technologies' free invoice generator 
-              to create professional invoices. No registration required - start now and download your first invoice in minutes!
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="text-center">
-                <h3 className="font-semibold text-gray-800 mb-2">Perfect for Freelancers</h3>
-                <p className="text-sm text-gray-600">
-                  Create professional invoices for your clients quickly and easily. Multiple currency support for international work.
-                </p>
-              </div>
-              <div className="text-center">
-                <h3 className="font-semibold text-gray-800 mb-2">Small Business Ready</h3>
-                <p className="text-sm text-gray-600">
-                  Professional invoice templates that make your small business look established and trustworthy.
-                </p>
-              </div>
-              <div className="text-center">
-                <h3 className="font-semibold text-gray-800 mb-2">Consultant Friendly</h3>
-                <p className="text-sm text-gray-600">
-                  Perfect for consultants who need to bill clients for services, projects, and hourly work.
-                </p>
-              </div>
-            </div>
-            
-            <div className="border-t pt-6">
-              <p className="text-xs text-gray-500 mb-2">
-                © 2025 Dewiride Technologies Private Limited. Free online invoice maker for businesses worldwide.
-              </p>
-              <p className="text-xs text-gray-400 mb-3">
-                Create professional invoices • PDF download • Multiple currencies • No registration required
-              </p>
-              <div className="flex justify-center space-x-4 text-xs">
-                <Link 
-                  href="/privacy" 
-                  className="text-blue-600 hover:text-blue-800 underline"
-                >
-                  Privacy Policy
-                </Link>
-                <span className="text-gray-400">•</span>
-                <Link 
-                  href="/terms" 
-                  className="text-blue-600 hover:text-blue-800 underline"
-                >
-                  Terms of Service
-                </Link>
-                <span className="text-gray-400">•</span>
-                <a 
-                  href="https://dewiride.com" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-800 underline"
-                >
-                  Dewiride Technologies
-                </a>
-              </div>
-            </div>
-          </div>
-        </footer>
 
-        {/* Saved Data Manager Modal */}
-        <SavedDataManager
-          isOpen={showSavedDataManager}
-          onClose={() => setShowSavedDataManager(false)}
-          onDataChanged={() => setRefreshTrigger(prev => prev + 1)}
-        />
+        <section aria-labelledby="why-heading" className="card mt-12 p-6 sm:p-10">
+          <h2 id="why-heading" className="text-2xl font-bold tracking-tight text-fg">
+            Why choose Dewiride Technologies&rsquo; free invoice generator?
+          </h2>
+          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {FEATURES.map(({ Icon, title, body }) => (
+              <div key={title} className="rounded-card border border-border bg-surface-sunken p-5">
+                <span className="mb-3.5 inline-grid size-11 place-items-center rounded-xl bg-brand-subtle text-brand-text">
+                  <Icon className="size-5" />
+                </span>
+                <h3 className="text-base font-semibold text-fg">{title}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-fg-muted">{body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section aria-labelledby="how-heading" className="card mt-8 p-6 sm:p-10">
+          <h2 id="how-heading" className="text-2xl font-bold tracking-tight text-fg">
+            How to create an invoice online
+          </h2>
+          <ol className="mt-8 grid gap-6 md:grid-cols-2">
+            {STEPS.map(([title, body], index) => (
+              <li key={title} className="flex gap-4">
+                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand text-sm font-semibold text-brand-fg">
+                  {index + 1}
+                </span>
+                <div>
+                  <h3 className="text-sm font-semibold text-fg">{title}</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-fg-muted">{body}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section aria-labelledby="faq-heading" className="card mt-8 p-6 sm:p-10">
+          <h2 id="faq-heading" className="text-2xl font-bold tracking-tight text-fg">
+            Frequently asked questions
+          </h2>
+          <dl className="mt-8 space-y-6">
+            {FAQS.map(({ q, a }) => (
+              <div key={q}>
+                <dt className="text-sm font-semibold text-fg">{q}</dt>
+                <dd className="mt-1.5 text-sm leading-relaxed text-fg-muted">{a}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
       </div>
-    </>
+
+      {/*
+        The download CTA used to sit below a long preview on mobile, so reaching
+        it meant scrolling past the whole invoice. Here it is always one tap
+        away, with the running total for context.
+      */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden">
+        <div className="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[0.6875rem] font-medium uppercase tracking-wide text-fg-muted">
+              Total
+            </p>
+            <p className="truncate text-base font-bold tabular text-fg" data-testid="sticky-total">
+              {formatCurrency(total, invoice.currency)}
+            </p>
+          </div>
+          <DownloadPDFButton data={invoice} className={`${buttonClass.primary} shrink-0`} />
+        </div>
+      </div>
+
+      <footer className="border-t border-border bg-surface-sunken">
+        <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6">
+          <p className="text-sm text-fg-muted">
+            © 2026 Dewiride Technologies Private Limited. Free online invoice maker for businesses
+            worldwide.
+          </p>
+          <nav aria-label="Footer" className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            <Link href="/privacy" className="inline-flex min-h-6 items-center py-1 text-brand-text underline underline-offset-4">
+              Privacy Policy
+            </Link>
+            <Link href="/terms" className="inline-flex min-h-6 items-center py-1 text-brand-text underline underline-offset-4">
+              Terms of Service
+            </Link>
+            <a
+              href="https://dewiride.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-6 items-center py-1 text-brand-text underline underline-offset-4"
+            >
+              Dewiride Technologies
+            </a>
+          </nav>
+        </div>
+      </footer>
+
+      <SavedDataManager
+        isOpen={showSavedDataManager}
+        onClose={() => setShowSavedDataManager(false)}
+      />
+    </LiveRegionProvider>
   );
 }

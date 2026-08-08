@@ -9,34 +9,102 @@ on:
     branches:
       - main
 
+# Cancel a superseded run rather than paying for both.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build_and_deploy_job:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
-    name: Build and Deploy Job
+    name: Build and Deploy
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: true
           lfs: false
-      - name: Build And Deploy
+
+      # Building here rather than letting Oryx do it. Oryx infers both the
+      # package manager and the Node version, and its Node support has lagged;
+      # Next 16 requires >= 20.9. Pinning it explicitly removes the guesswork
+      # and gives us somewhere to assert on the output before it ships.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check colour contrast
+        run: npm run check:contrast
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify the export
+        run: |
+          # distDir must stay unset. If it is ever pointed at out/, Next writes
+          # server bundles and build manifests into the folder Azure uploads to
+          # the public CDN.
+          test ! -d out/server || { echo "::error::server bundles found in out/"; exit 1; }
+          test ! -d out/cache  || { echo "::error::build cache found in out/";    exit 1; }
+
+          # The og:image is referenced from six places and silently 404'd for a
+          # year, because navigationFallback answered with the 404 page's HTML.
+          test -f out/og-image.png || { echo "::error::og-image.png missing";     exit 1; }
+
+          # The PDF engine (~1.5 MB) must stay out of the first-paint bundle.
+          if grep -q "react-pdf\|fontkit\|yoga-layout" out/index.html; then
+            echo "::error::PDF engine is referenced from index.html -- the lazy import regressed"
+            exit 1
+          fi
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Test
+        # Runs against the real export on desktop and mobile: the invoice flow,
+        # the saved-data store, PDF generation, and axe over the interactive
+        # states a static crawl never reaches (dialog open, combobox open).
+        run: npm test
+
+      - name: Upload test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Report bundle size
+        run: npm run size
+
+      - name: Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_MANGO_DUNE_074690A00 }}
-          repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
-          # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
-          app_location: "/" # App source code path
-          api_location: "" # Api source code path - optional
-          output_location: "out" # Built app content directory - optional
-          ###### End of Repository/Build Configurations ######
+          app_location: "/"
+          api_location: ""
+          output_location: "out"
+          # We already built above; skip Oryx entirely.
+          skip_app_build: true
+          skip_api_build: true
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
-    name: Close Pull Request Job
+    name: Close Pull Request
     steps:
       - name: Close Pull Request
         id: closepullrequest

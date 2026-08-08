@@ -1,71 +1,253 @@
 @import "tailwindcss";
 
-/* Fix for html2canvas oklch error: force all colors to rgb/hex for PDF rendering */
-.invoice-preview, .invoice-preview * {
-  background: #fff !important;
-  color: #111 !important;
-  border-color: #e5e7eb !important;
-  box-shadow: none !important;
+/* ---------------------------------------------------------------------------
+   Dark mode
+   ---------------------------------------------------------------------------
+   Tailwind v4's `dark:` variant defaults to prefers-color-scheme. That media
+   query cannot express "this user asked for light on a dark-preference OS", so
+   we point the variant at a class instead. An inline script in _document.tsx
+   resolves system-vs-explicit before first paint and stamps `.dark` on <html>,
+   which means CSS only ever has to deal with a boolean.
+--------------------------------------------------------------------------- */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Palette
+   ---------------------------------------------------------------------------
+   Declared as plain custom properties so they can be swapped per theme, then
+   exposed to Tailwind through `@theme inline` below.
+
+   Every pair used in the UI is verified against WCAG AA by
+   `npm run check:contrast`, which parses this file. If you change a value
+   here, run it.
+
+   Note the naming: in v4 the `--text-*` namespace inside @theme means
+   font-size, so a `--text-primary` token would generate a font-size utility.
+   Foreground colours are therefore `--fg` / `--fg-muted`, giving `text-fg` and
+   `text-fg-muted`.
+--------------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+
+  --canvas: #f1f5f9;
+  --surface: #ffffff;
+  --surface-sunken: #f8fafc;
+  --surface-raised: #ffffff;
+
+  --border: #e2e8f0;
+  /* Input/control outlines are UI components, so SC 1.4.11 wants 3:1 -- not
+     the 1.5:1 that slate-400 would have given. */
+  --border-strong: #7d8ba2;
+
+  --fg: #0f172a;
+  --fg-muted: #51607a;
+
+  /* Brand blue is pinned to the PDF's accent (#2563eb) so the on-screen
+     preview and the generated document read as the same product. */
+  --brand: #1d4ed8;
+  --brand-hover: #1e40af;
+  --brand-fg: #ffffff;
+  --brand-subtle: #eff6ff;
+  --brand-text: #1d4ed8;
+
+  --success: #15803d;
+  --success-fg: #ffffff;
+
+  --danger: #b91c1c;
+  --danger-fg: #ffffff;
+  --danger-subtle: #fef2f2;
+  --danger-text: #b91c1c;
+
+  --ring: #2563eb;
+
+  /* The invoice preview renders a printed page, so it stays light in both
+     themes and needs its own scale. Declared here rather than inline in the
+     component so `npm run check:contrast` covers it -- when these were
+     hardcoded Tailwind tints, a 2.5:1 placeholder slipped through. */
+  --paper: #ffffff;
+  --paper-sunken: #f8fafc;
+  --paper-fg: #1f2937;
+  --paper-fg-muted: #5a6b82;
+  --paper-border: #e2e8f0;
+  --paper-accent: #2563eb;
+  --paper-accent-fg: #ffffff;
+  --paper-header: #1f2937;
+  --paper-header-fg: #ffffff;
+
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.08);
+  --shadow-raised: 0 10px 30px -12px rgb(15 23 42 / 0.25);
+  --shadow-overlay: 0 25px 50px -12px rgb(15 23 42 / 0.4);
 }
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+.dark {
+  color-scheme: dark;
+
+  --canvas: #080c14;
+  --surface: #111827;
+  --surface-sunken: #0d131f;
+  --surface-raised: #172033;
+
+  --border: #263244;
+  --border-strong: #64748b;
+
+  --fg: #e9eef7;
+  --fg-muted: #9fb0c9;
+
+  /* Lighter blue: #1d4ed8 on a near-black surface is too dim to read as an
+     accent, and pairing it with white would drop below AA.
+     #60a5fa/#001022 at 7.5:1 rather than the 5.15:1 of the pair it replaced --
+     headroom matters because the sticky mobile bar composites the button over
+     a blurred backdrop, which measured 4.45:1 and failed. */
+  --brand: #60a5fa;
+  --brand-hover: #7cb8fc;
+  --brand-fg: #001022;
+  --brand-subtle: #17233c;
+  --brand-text: #93c5fd;
+
+  --success: #4ade80;
+  --success-fg: #052e16;
+
+  --danger: #f87171;
+  --danger-fg: #2b0707;
+  --danger-subtle: #2a1416;
+  --danger-text: #fca5a5;
+
+  --ring: #60a5fa;
+
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.5), 0 1px 3px 0 rgb(0 0 0 / 0.4);
+  --shadow-raised: 0 10px 30px -12px rgb(0 0 0 / 0.7);
+  --shadow-overlay: 0 25px 50px -12px rgb(0 0 0 / 0.8);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-raised: var(--surface-raised);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-fg: var(--brand-fg);
+  --color-brand-subtle: var(--brand-subtle);
+  --color-brand-text: var(--brand-text);
+
+  --color-success: var(--success);
+  --color-success-fg: var(--success-fg);
+
+  --color-danger: var(--danger);
+  --color-danger-fg: var(--danger-fg);
+  --color-danger-subtle: var(--danger-subtle);
+  --color-danger-text: var(--danger-text);
+
+  --color-ring: var(--ring);
+
+  --color-paper: var(--paper);
+  --color-paper-sunken: var(--paper-sunken);
+  --color-paper-fg: var(--paper-fg);
+  --color-paper-fg-muted: var(--paper-fg-muted);
+  --color-paper-border: var(--paper-border);
+  --color-paper-accent: var(--paper-accent);
+  --color-paper-accent-fg: var(--paper-accent-fg);
+  --color-paper-header: var(--paper-header);
+  --color-paper-header-fg: var(--paper-header-fg);
+
+  /* Supplied by next/font in _app.tsx. */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-card: 0.875rem;
+  --radius-panel: 1.25rem;
+
+  --shadow-card: var(--shadow-card);
+  --shadow-raised: var(--shadow-raised);
+  --shadow-overlay: var(--shadow-overlay);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  /* Tailwind v4 changed the default border colour to currentColor, so every
+     bare `border` utility paints a near-black hairline. Restore a token. */
+  *,
+  ::after,
+  ::before {
+    border-color: var(--border);
+  }
+
+  html {
+    /* Next 16 no longer overrides scroll-behavior during navigation; the
+       matching data-scroll-behavior="smooth" is set on <Html>. */
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--canvas);
+    color: var(--fg);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* One focus indicator for the whole app, on :focus-visible so it appears for
+     keyboard users without ringing every mouse click. Components must not
+     replace this with a background-colour change -- the previous dropdown did,
+     at a 1.06:1 ratio, which is no indicator at all. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+  }
+
+  /* Numeric columns must not jitter as digits change. */
+  input[type="number"],
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background-color: var(--brand);
+    color: var(--brand-fg);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .card {
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-panel);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* The invoice preview is a sheet of paper. It stays light in dark mode
+     because it mirrors what the PDF will actually print -- showing a dark
+     preview of a white document would be a lie about the output. */
+  .paper {
+    color-scheme: light;
+    background-color: var(--paper);
+    color: var(--paper-fg);
+    border: 1px solid var(--paper-border);
+    border-radius: var(--radius-card);
+  }
+
+  .paper :is(h1, h2, h3, h4, p, span, div, td, th, li) {
+    color: inherit;
+  }
 }
 
-/* Custom scrollbar for dropdown */
-.max-h-40 {
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
-}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 
-.max-h-40::-webkit-scrollbar {
-  width: 6px;
-}
-
-.max-h-40::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.max-h-40::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
-  border-radius: 3px;
-}
-
-.max-h-40::-webkit-scrollbar-thumb:hover {
-  background-color: #94a3b8;
-}
-
-/* Line clamp utility for text truncation */
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* Focus styles for better accessibility */
-.focus\:bg-blue-50:focus {
-  background-color: #eff6ff;
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

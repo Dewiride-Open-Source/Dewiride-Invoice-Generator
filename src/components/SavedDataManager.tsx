@@ -1,298 +1,213 @@
-import React, { useState, useEffect } from 'react';
+import React, { useId, useState } from 'react';
+import Modal from './a11y/Modal';
+import { buttonClass } from './fields';
+import { TrashIcon, WarningIcon } from './icons';
+import { useAnnounce } from './a11y/LiveRegion';
 import {
-  getFromCompanies,
-  getToCompanies,
-  getItemDescriptions,
-  deleteFromCompany,
-  deleteToCompany,
-  deleteItemDescription,
-  clearAllSavedData,
   CompanyDetails,
   ItemDescription,
-} from '../utils/localStorage';
+  clearAllSavedData,
+  deleteFromCompany,
+  deleteItemDescription,
+  deleteToCompany,
+} from '../utils/savedData';
+import { useFromCompanies, useItemDescriptions, useToCompanies } from '../hooks/useSavedData';
 
 interface SavedDataManagerProps {
   isOpen: boolean;
   onClose: () => void;
-  onDataChanged?: () => void;
 }
 
-const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose, onDataChanged }) => {
-  const [fromCompanies, setFromCompanies] = useState<CompanyDetails[]>([]);
-  const [toCompanies, setToCompanies] = useState<CompanyDetails[]>([]);
-  const [itemDescriptions, setItemDescriptions] = useState<ItemDescription[]>([]);
-  const [activeTab, setActiveTab] = useState<'from' | 'to' | 'items'>('from');
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+type TabId = 'from' | 'to' | 'items';
 
-  useEffect(() => {
-    if (isOpen) {
-      loadData();
-    }
-  }, [isOpen]);
+const isCompany = (entry: CompanyDetails | ItemDescription): entry is CompanyDetails =>
+  'name' in entry;
 
-  const loadData = () => {
-    setFromCompanies(getFromCompanies());
-    setToCompanies(getToCompanies());
-    setItemDescriptions(getItemDescriptions());
-  };
+const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose }) => {
+  // The store is the single source of truth. A delete here re-renders the
+  // form's dropdowns automatically -- no callback relay needed.
+  const fromCompanies = useFromCompanies();
+  const toCompanies = useToCompanies();
+  const itemDescriptions = useItemDescriptions();
+  const announce = useAnnounce();
 
-  const handleDeleteFromCompany = (id: string) => {
-    deleteFromCompany(id);
-    setFromCompanies(getFromCompanies());
-    onDataChanged?.();
-  };
+  const [activeTab, setActiveTab] = useState<TabId>('from');
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const baseId = useId();
 
-  const handleDeleteToCompany = (id: string) => {
-    deleteToCompany(id);
-    setToCompanies(getToCompanies());
-    onDataChanged?.();
-  };
+  const tabs = [
+    { id: 'from' as const, label: 'Your businesses', entries: fromCompanies, remove: deleteFromCompany },
+    { id: 'to' as const, label: 'Clients', entries: toCompanies, remove: deleteToCompany },
+    {
+      id: 'items' as const,
+      label: 'Item descriptions',
+      entries: itemDescriptions,
+      remove: deleteItemDescription,
+    },
+  ];
 
-  const handleDeleteItemDescription = (id: string) => {
-    deleteItemDescription(id);
-    setItemDescriptions(getItemDescriptions());
-    onDataChanged?.();
-  };
+  const current = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
+  const hasAnyData = tabs.some((tab) => tab.entries.length > 0);
 
-  const handleClearAll = () => {
-    setShowConfirmDialog(true);
+  const handleDelete = (entry: CompanyDetails | ItemDescription, remove: (id: string) => void) => {
+    const label = isCompany(entry) ? entry.name : entry.description;
+    remove(entry.id);
+    announce(`${label} deleted.`);
   };
 
   const confirmClearAll = () => {
     clearAllSavedData();
-    loadData();
-    onDataChanged?.();
-    setShowConfirmDialog(false);
+    setConfirmingClear(false);
+    announce('All saved data cleared.', 'assertive');
   };
-
-  const cancelClearAll = () => {
-    setShowConfirmDialog(false);
-  };
-
-  if (!isOpen) return null;
-
-  const hasAnyData = fromCompanies.length > 0 || toCompanies.length > 0 || itemDescriptions.length > 0;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-        {/* Header */}
-        <div className="border-b border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-gray-900">Manage Saved Data</h2>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="border-b border-gray-200">
-          <div className="flex">
-            <button
-              onClick={() => setActiveTab('from')}
-              className={`px-6 py-3 font-medium text-sm border-b-2 transition-colors ${
-                activeTab === 'from'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              From Companies ({fromCompanies.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('to')}
-              className={`px-6 py-3 font-medium text-sm border-b-2 transition-colors ${
-                activeTab === 'to'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              To Companies ({toCompanies.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('items')}
-              className={`px-6 py-3 font-medium text-sm border-b-2 transition-colors ${
-                activeTab === 'items'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Item Descriptions ({itemDescriptions.length})
-            </button>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[60vh]">
-          {activeTab === 'from' && (
-            <div className="space-y-4">
-              {fromCompanies.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No saved "From" companies yet.</p>
-              ) : (
-                fromCompanies.map((company) => (
-                  <div key={company.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">{company.name}</h3>
-                        <p className="text-sm text-gray-600 mt-1 whitespace-pre-line">{company.address}</p>
-                        <p className="text-xs text-gray-400 mt-2">
-                          Last used: {company.lastUsed.toLocaleDateString()}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleDeleteFromCompany(company.id)}
-                        className="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded transition-colors"
-                        title="Delete company"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-
-          {activeTab === 'to' && (
-            <div className="space-y-4">
-              {toCompanies.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No saved "To" companies yet.</p>
-              ) : (
-                toCompanies.map((company) => (
-                  <div key={company.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">{company.name}</h3>
-                        <p className="text-sm text-gray-600 mt-1 whitespace-pre-line">{company.address}</p>
-                        <p className="text-xs text-gray-400 mt-2">
-                          Last used: {company.lastUsed.toLocaleDateString()}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleDeleteToCompany(company.id)}
-                        className="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded transition-colors"
-                        title="Delete company"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-
-          {activeTab === 'items' && (
-            <div className="space-y-4">
-              {itemDescriptions.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No saved item descriptions yet.</p>
-              ) : (
-                itemDescriptions.map((item) => (
-                  <div key={item.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">{item.description}</h3>
-                        {item.defaultPrice && (
-                          <p className="text-sm text-blue-600 mt-1">
-                            Default price: {item.defaultPrice.toFixed(2)}
-                          </p>
-                        )}
-                        <p className="text-xs text-gray-400 mt-2">
-                          Last used: {item.lastUsed.toLocaleDateString()}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleDeleteItemDescription(item.id)}
-                        className="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded transition-colors"
-                        title="Delete item"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="border-t border-gray-200 p-6">
-          <div className="flex justify-between items-center">
-            {hasAnyData && (
+    <>
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Manage saved data"
+        description="Businesses, clients and item descriptions stored in this browser for autocomplete. They are never uploaded."
+        footer={
+          <div className="flex items-center justify-between gap-3">
+            {hasAnyData ? (
               <button
-                onClick={handleClearAll}
-                className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm"
+                type="button"
+                onClick={() => setConfirmingClear(true)}
+                className={buttonClass.dangerGhost}
               >
-                Clear All Data
+                Clear all data
               </button>
+            ) : (
+              <span />
             )}
-            <button
-              onClick={onClose}
-              className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors ${!hasAnyData ? 'ml-auto' : ''}`}
-            >
-              Close
+            <button type="button" onClick={onClose} className={buttonClass.primary}>
+              Done
             </button>
           </div>
+        }
+      >
+        <div role="tablist" aria-label="Saved data categories" className="flex flex-wrap gap-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              id={`${baseId}-tab-${tab.id}`}
+              aria-selected={activeTab === tab.id}
+              aria-controls={`${baseId}-panel-${tab.id}`}
+              onClick={() => setActiveTab(tab.id)}
+              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                activeTab === tab.id
+                  ? 'bg-brand-subtle text-brand-text'
+                  : 'text-fg-muted hover:bg-surface-sunken hover:text-fg'
+              }`}
+            >
+              {tab.label} ({tab.entries.length})
+            </button>
+          ))}
         </div>
 
-        {/* Confirmation Dialog */}
-        {showConfirmDialog && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-              <div className="p-6">
-                <div className="flex items-center mb-4">
-                  <div className="flex-shrink-0">
-                    <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.732 15.5c-.77.833.192 2.5 1.732 2.5z" />
-                    </svg>
+        <div
+          role="tabpanel"
+          id={`${baseId}-panel-${current.id}`}
+          aria-labelledby={`${baseId}-tab-${current.id}`}
+          className="mt-4"
+        >
+          {current.entries.length === 0 ? (
+            <p className="rounded-card border border-dashed border-border py-10 text-center text-sm text-fg-muted">
+              Nothing saved here yet. Entries are added automatically as you fill in invoices.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {current.entries.map((entry) => (
+                <li
+                  key={entry.id}
+                  className="flex items-start justify-between gap-3 rounded-card border border-border p-4"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-fg">
+                      {isCompany(entry) ? entry.name : entry.description}
+                    </p>
+                    {isCompany(entry) ? (
+                      <p className="mt-1 whitespace-pre-line break-words text-sm text-fg-muted">
+                        {entry.address}
+                      </p>
+                    ) : (
+                      entry.defaultPrice !== undefined && (
+                        <p className="mt-1 text-sm text-brand-text">
+                          Default price: {entry.defaultPrice.toFixed(2)}
+                        </p>
+                      )
+                    )}
+                    <p className="mt-2 text-xs text-fg-muted">
+                      Last used{' '}
+                      <time dateTime={entry.lastUsed.toISOString()}>
+                        {entry.lastUsed.toLocaleDateString()}
+                      </time>
+                    </p>
                   </div>
-                  <div className="ml-4">
-                    <h3 className="text-lg font-semibold text-gray-900">Clear All Saved Data</h3>
-                  </div>
-                </div>
-                <div className="mb-6">
-                  <p className="text-gray-600">
-                    Are you sure you want to clear all saved data? This will permanently delete:
-                  </p>
-                  <ul className="mt-3 text-sm text-gray-600 space-y-1">
-                    <li>• {fromCompanies.length} saved "From" companies</li>
-                    <li>• {toCompanies.length} saved "To" companies</li>
-                    <li>• {itemDescriptions.length} saved item descriptions</li>
-                  </ul>
-                  <p className="mt-3 text-sm font-medium text-red-600">
-                    This action cannot be undone.
-                  </p>
-                </div>
-                <div className="flex justify-end space-x-3">
                   <button
-                    onClick={cancelClearAll}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                    type="button"
+                    onClick={() => handleDelete(entry, current.remove)}
+                    className={buttonClass.iconDanger}
                   >
-                    Cancel
+                    <TrashIcon className="size-4" />
+                    {/* Names the specific entry, so a screen reader is not
+                        offered a column of identical "Delete" buttons. */}
+                    <span className="sr-only">
+                      Delete {isCompany(entry) ? entry.name : entry.description}
+                    </span>
                   </button>
-                  <button
-                    onClick={confirmClearAll}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    Clear All Data
-                  </button>
-                </div>
-              </div>
-            </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </Modal>
+
+      {/* A separate dialog rather than one nested inside the other: two open
+          <dialog> elements stack correctly in the top layer, and the confirm
+          step gets its own focus trap and its own accessible name. */}
+      <Modal
+        isOpen={confirmingClear}
+        onClose={() => setConfirmingClear(false)}
+        title="Clear all saved data?"
+        size="md"
+        footer={
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setConfirmingClear(false)}
+              className={buttonClass.secondary}
+            >
+              Cancel
+            </button>
+            <button type="button" onClick={confirmClearAll} className={buttonClass.danger}>
+              Yes, clear everything
+            </button>
           </div>
-        )}
-      </div>
-    </div>
+        }
+      >
+        <div className="flex gap-4">
+          <WarningIcon className="size-8 shrink-0 text-danger-text" />
+          <div>
+            <p className="text-sm text-fg-muted">This will permanently delete:</p>
+            <ul className="mt-3 space-y-1 text-sm text-fg">
+              {tabs.map((tab) => (
+                <li key={tab.id}>
+                  {tab.entries.length} saved {tab.label.toLowerCase()}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-sm font-medium text-danger-text">This cannot be undone.</p>
+            <p className="mt-2 text-sm text-fg-muted">
+              Your current invoice is not affected.
+            </p>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 };
 
