@@ -60,6 +60,20 @@
 
   --ring: #2563eb;
 
+  /* The invoice preview renders a printed page, so it stays light in both
+     themes and needs its own scale. Declared here rather than inline in the
+     component so `npm run check:contrast` covers it -- when these were
+     hardcoded Tailwind tints, a 2.5:1 placeholder slipped through. */
+  --paper: #ffffff;
+  --paper-sunken: #f8fafc;
+  --paper-fg: #1f2937;
+  --paper-fg-muted: #5a6b82;
+  --paper-border: #e2e8f0;
+  --paper-accent: #2563eb;
+  --paper-accent-fg: #ffffff;
+  --paper-header: #1f2937;
+  --paper-header-fg: #ffffff;
+
   --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.08);
   --shadow-raised: 0 10px 30px -12px rgb(15 23 42 / 0.25);
   --shadow-overlay: 0 25px 50px -12px rgb(15 23 42 / 0.4);
@@ -130,6 +144,16 @@
 
   --color-ring: var(--ring);
 
+  --color-paper: var(--paper);
+  --color-paper-sunken: var(--paper-sunken);
+  --color-paper-fg: var(--paper-fg);
+  --color-paper-fg-muted: var(--paper-fg-muted);
+  --color-paper-border: var(--paper-border);
+  --color-paper-accent: var(--paper-accent);
+  --color-paper-accent-fg: var(--paper-accent-fg);
+  --color-paper-header: var(--paper-header);
+  --color-paper-header-fg: var(--paper-header-fg);
+
   /* Supplied by next/font in _app.tsx. */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
@@ -199,9 +223,9 @@
      preview of a white document would be a lie about the output. */
   .paper {
     color-scheme: light;
-    background-color: #ffffff;
-    color: #0f172a;
-    border: 1px solid #e2e8f0;
+    background-color: var(--paper);
+    color: var(--paper-fg);
+    border: 1px solid var(--paper-border);
     border-radius: var(--radius-card);
   }
 

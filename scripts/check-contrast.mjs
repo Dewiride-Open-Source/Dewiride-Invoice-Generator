@@ -63,14 +63,27 @@ const PAIRS = [
   ['ring', 'surface', 3.0, 'focus ring on card'],
   ['border-strong', 'surface', 3.0, 'input border on card'],
   ['border-strong', 'surface-sunken', 3.0, 'input border on inset panel'],
+
+  // The invoice preview is always light, so these are theme-independent -- but
+  // they are what the user actually reads, and what the PDF mirrors.
+  ['paper-fg', 'paper', 4.5, 'invoice text on the sheet'],
+  ['paper-fg', 'paper-sunken', 4.5, 'invoice text on an address card'],
+  ['paper-fg-muted', 'paper', 4.5, 'invoice hint on the sheet'],
+  ['paper-fg-muted', 'paper-sunken', 4.5, 'invoice hint on an address card'],
+  ['paper-accent', 'paper', 4.5, 'invoice section label'],
+  ['paper-accent', 'paper-sunken', 4.5, 'invoice section label on a card'],
+  ['paper-accent-fg', 'paper-accent', 4.5, 'invoice total bar'],
+  ['paper-header-fg', 'paper-header', 4.5, 'invoice table header'],
 ];
 
 let failures = 0;
 for (const [themeName, tokens] of [['light', light], ['dark', dark]]) {
   console.log(`\n  ${themeName.toUpperCase()}`);
   for (const [fg, bg, min, label] of PAIRS) {
-    const fgHex = tokens[fg];
-    const bgHex = tokens[bg];
+    // `.dark` only redeclares what changes; anything it omits (the paper scale,
+    // for instance) still resolves to the :root value at runtime.
+    const fgHex = tokens[fg] ?? light[fg];
+    const bgHex = tokens[bg] ?? light[bg];
     if (!fgHex || !bgHex) {
       console.log(`    MISSING  --${fg} / --${bg}`);
       failures++;

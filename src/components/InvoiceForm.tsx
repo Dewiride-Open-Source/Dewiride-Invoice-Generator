@@ -239,16 +239,19 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
 
         <ul className="mt-3 space-y-3 @xl:space-y-2">
           {data.items.map((item, index) => (
-            // The visible labels are short ("Quantity") and therefore repeat
-            // across rows. Naming the row as a group is what disambiguates
-            // them: a screen reader announces "Item 2, Quantity, edit text"
-            // rather than three identical "Quantity" fields.
+            // The group lives on an inner wrapper, not the <li>. Putting
+            // role="group" on the <li> overrides its implicit listitem role,
+            // which leaves the <ul> with no list items at all (axe: "list").
+            //
+            // It is needed because the visible labels are short ("Quantity")
+            // and repeat across rows; the group name is what makes a screen
+            // reader announce "Item 2, Quantity" rather than three identical
+            // "Quantity" fields.
             <li
               key={item.id}
-              role="group"
-              aria-label={`Item ${index + 1}`}
               className="relative rounded-card border border-border bg-surface p-4 @xl:static @xl:grid @xl:grid-cols-[minmax(0,1fr)_4.5rem_7rem_7rem_2.5rem] @xl:items-start @xl:gap-3 @xl:border-0 @xl:bg-transparent @xl:p-0"
             >
+              <div role="group" aria-label={`Item ${index + 1}`} className="contents">
               <div className="mb-3 flex items-center justify-between @xl:hidden">
                 <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
                   Item {index + 1}
@@ -334,6 +337,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
                     {item.description ? `, ${item.description}` : ''}
                   </span>
                 </button>
+              </div>
               </div>
             </li>
           ))}

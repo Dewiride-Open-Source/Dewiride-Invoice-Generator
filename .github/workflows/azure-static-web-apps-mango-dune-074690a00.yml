@@ -67,6 +67,23 @@ jobs:
             exit 1
           fi
 
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Test
+        # Runs against the real export on desktop and mobile: the invoice flow,
+        # the saved-data store, PDF generation, and axe over the interactive
+        # states a static crawl never reaches (dialog open, combobox open).
+        run: npm test
+
+      - name: Upload test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
       - name: Report bundle size
         run: npm run size
 
