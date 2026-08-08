@@ -7,6 +7,7 @@ import DownloadPDFButton from '../components/DownloadPDFButtonNew';
 import SavedDataManager from '../components/SavedDataManager';
 import { saveFromCompany, saveToCompany, saveItemDescription } from '../utils/localStorage';
 import { trackSavedDataManagerOpened, trackFormProgress, trackInvoiceGenerated } from '../utils/analytics';
+import { computeTotals } from '../utils/totals';
 
 const defaultInvoice: InvoiceData = {
   fromName: '',
@@ -155,9 +156,11 @@ export default function Home() {
     
     if (isComplete && wasIncomplete) {
       trackFormProgress('complete');
-      const subtotal = newInvoice.items.reduce((sum, item) => sum + item.quantity * item.price, 0);
-      const total = subtotal + (subtotal * (newInvoice.tax / 100));
-      trackInvoiceGenerated(newInvoice.currency, newInvoice.items.length, total);
+      trackInvoiceGenerated(
+        newInvoice.currency,
+        newInvoice.items.length,
+        computeTotals(newInvoice).total,
+      );
     }
   }, [invoice, autoSaveCompaniesAndItems]);
 

@@ -1,15 +1,14 @@
 import React from 'react';
 import { InvoiceData } from './InvoiceForm';
 import { formatCurrency } from '../utils/currency';
+import { computeTotals, lineTotal } from '../utils/totals';
 
 interface InvoicePreviewProps {
   data: InvoiceData;
 }
 
 const InvoicePreview: React.FC<InvoicePreviewProps> = ({ data }) => {
-  const subtotal = data.items.reduce((sum, item) => sum + item.quantity * item.price, 0);
-  const taxAmount = subtotal * (data.tax / 100);
-  const total = subtotal + taxAmount;
+  const { subtotal, taxAmount, total } = computeTotals(data);
 
   return (
     <div className="invoice-preview text-gray-900">
@@ -48,7 +47,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ data }) => {
               <td className="p-2">{item.description}</td>
               <td className="p-2 text-right">{item.quantity}</td>
               <td className="p-2 text-right">{formatCurrency(item.price, data.currency)}</td>
-              <td className="p-2 text-right">{formatCurrency(item.quantity * item.price, data.currency)}</td>
+              <td className="p-2 text-right">{formatCurrency(lineTotal(item), data.currency)}</td>
             </tr>
           ))}
         </tbody>

@@ -2,6 +2,7 @@ import React from 'react';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 import { InvoiceData } from './InvoiceForm';
 import { formatCurrency } from '../utils/currency';
+import { computeTotals, lineTotal } from '../utils/totals';
 
 interface InvoicePDFProps {
   data: InvoiceData;
@@ -202,9 +203,7 @@ const styles = StyleSheet.create({
 });
 
 const InvoicePDF: React.FC<InvoicePDFProps> = ({ data }) => {
-  const subtotal = data.items.reduce((sum, item) => sum + item.quantity * item.price, 0);
-  const taxAmount = subtotal * (data.tax / 100);
-  const total = subtotal + taxAmount;
+  const { subtotal, taxAmount, total } = computeTotals(data);
 
   return (
     <Document>
@@ -279,7 +278,7 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ data }) => {
                 <Text style={styles.tableCellRight}>{formatCurrency(item.price, data.currency)}</Text>
               </View>
               <View style={styles.tableCol}>
-                <Text style={styles.tableCellRight}>{formatCurrency(item.quantity * item.price, data.currency)}</Text>
+                <Text style={styles.tableCellRight}>{formatCurrency(lineTotal(item), data.currency)}</Text>
               </View>
             </View>
           ))}
