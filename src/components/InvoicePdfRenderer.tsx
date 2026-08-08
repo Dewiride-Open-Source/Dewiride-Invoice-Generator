@@ -16,7 +16,7 @@
 // drag it in.
 import { pdf } from '@react-pdf/renderer';
 import InvoicePDF from './InvoicePDF';
-import type { InvoiceData } from './InvoiceForm';
+import type { InvoiceData } from '../types/invoice';
 
 export async function renderInvoicePdfBlob(data: InvoiceData): Promise<Blob> {
   return pdf(<InvoicePDF data={data} />).toBlob();

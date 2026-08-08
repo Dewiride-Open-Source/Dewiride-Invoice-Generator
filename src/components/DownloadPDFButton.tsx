@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { InvoiceData } from './InvoiceForm';
+import { InvoiceData } from '../types/invoice';
 import { trackPDFDownload } from '../utils/analytics';
 import { computeTotals } from '../utils/totals';
 

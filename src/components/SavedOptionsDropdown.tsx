@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CompanyDetails, ItemDescription } from '../utils/savedData';
 import { trackSavedDataUsed } from '../utils/analytics';
+import { ChevronDownIcon, PlusIcon, SearchIcon } from './icons';
 
 interface Option {
   id: string;
@@ -18,10 +19,26 @@ interface SavedOptionsDropdownProps {
   options: readonly CompanyDetails[] | readonly ItemDescription[];
   placeholder: string;
   type: 'company' | 'item';
+  label: string;
   disabled?: boolean;
   className?: string;
 }
 
+const SAVE_OPTION_ID = 'save-current';
+
+/**
+ * A listbox of previously-used companies or item descriptions.
+ *
+ * Rebuilt to the WAI-ARIA combobox pattern. The previous version was a plain
+ * button toggling a div of buttons: no combobox/listbox/option roles, no
+ * aria-expanded, no aria-activedescendant, and -- the actual blocker -- no way
+ * to dismiss it from the keyboard at all, since it only listened for mousedown
+ * on the document.
+ *
+ * Focus stays on the search input throughout and the active option is tracked
+ * with aria-activedescendant, which is the pattern's standard arrangement:
+ * moving DOM focus onto each option instead would interrupt typing.
+ */
 const SavedOptionsDropdown: React.FC<SavedOptionsDropdownProps> = ({
   value,
   secondaryValue,
@@ -30,182 +47,324 @@ const SavedOptionsDropdown: React.FC<SavedOptionsDropdownProps> = ({
   options,
   placeholder,
   type,
+  label,
   disabled = false,
   className = '',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
 
-  // `options` comes from the saved-data store, which reports an empty list
-  // during the static export, so this needs no hydration guard of its own.
-  const formattedOptions: Option[] = options.map(option => {
-    if (type === 'company') {
-      const company = option as CompanyDetails;
-      return {
-        id: company.id,
-        label: company.name,
-        value: company.name,
-        secondaryValue: company.address,
-      };
-    } else {
-      const item = option as ItemDescription;
-      return {
-        id: item.id,
-        label: item.description,
-        value: item.description,
-        defaultPrice: item.defaultPrice,
-      };
-    }
-  });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
-  // Filter options based on search term
-  const filteredOptions = formattedOptions.filter(option =>
-    option.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (option.secondaryValue && option.secondaryValue.toLowerCase().includes(searchTerm.toLowerCase()))
+  const baseId = useId();
+  const listboxId = `${baseId}-listbox`;
+  const optionDomId = (id: string) => `${baseId}-option-${id}`;
+
+  const formattedOptions: Option[] = useMemo(
+    () =>
+      options.map((option) =>
+        type === 'company'
+          ? {
+              id: (option as CompanyDetails).id,
+              label: (option as CompanyDetails).name,
+              value: (option as CompanyDetails).name,
+              secondaryValue: (option as CompanyDetails).address,
+            }
+          : {
+              id: (option as ItemDescription).id,
+              label: (option as ItemDescription).description,
+              value: (option as ItemDescription).description,
+              defaultPrice: (option as ItemDescription).defaultPrice,
+            },
+      ),
+    [options, type],
   );
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-        setSearchTerm('');
-      }
-    };
+  const filteredOptions = useMemo(() => {
+    const needle = searchTerm.trim().toLowerCase();
+    if (!needle) return formattedOptions;
+    return formattedOptions.filter(
+      (option) =>
+        option.label.toLowerCase().includes(needle) ||
+        option.secondaryValue?.toLowerCase().includes(needle),
+    );
+  }, [formattedOptions, searchTerm]);
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+  const hasValidInput =
+    value.trim().length > 0 && (type === 'item' || Boolean(secondaryValue?.trim()));
+
+  const showSaveOption =
+    Boolean(onSave) &&
+    hasValidInput &&
+    !filteredOptions.some(
+      (option) =>
+        option.value.toLowerCase() === value.toLowerCase() &&
+        (type === 'item' ||
+          option.secondaryValue?.toLowerCase() === secondaryValue?.toLowerCase()),
+    );
+
+  // The save row is a real option so arrow keys reach it and the count in
+  // aria-activedescendant stays honest.
+  const navigableIds = useMemo(
+    () => [...filteredOptions.map((o) => o.id), ...(showSaveOption ? [SAVE_OPTION_ID] : [])],
+    [filteredOptions, showSaveOption],
+  );
+
+  const close = useCallback(
+    ({ restoreFocus = true }: { restoreFocus?: boolean } = {}) => {
+      setIsOpen(false);
+      setSearchTerm('');
+      setActiveId(null);
+      if (restoreFocus) triggerRef.current?.focus();
+    },
+    [],
+  );
+
+  const open = useCallback(() => {
+    setIsOpen(true);
+    setActiveId(null);
   }, []);
 
-  const handleOptionSelect = (option: Option) => {
-    onSelect(option.value, option.secondaryValue, option.defaultPrice);
-    setIsOpen(false);
-    setSearchTerm('');
-    
-    // Track analytics
-    trackSavedDataUsed(type, 'selected');
-  };
-
-  const handleSaveClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onSave) {
-      onSave();
-      // Track analytics
-      trackSavedDataUsed(type, 'saved');
-    }
-    setIsOpen(false);
-  };
-
-  const hasValidInput = value.trim().length > 0 && 
-    (type === 'item' || (secondaryValue && secondaryValue.trim().length > 0));
-
-  const showSaveOption = onSave && hasValidInput && !filteredOptions.some(option => 
-    option.value.toLowerCase() === value.toLowerCase() &&
-    (type === 'item' || option.secondaryValue?.toLowerCase() === secondaryValue?.toLowerCase())
+  const handleSelect = useCallback(
+    (option: Option) => {
+      onSelect(option.value, option.secondaryValue, option.defaultPrice);
+      close();
+      trackSavedDataUsed(type, 'selected');
+    },
+    [close, onSelect, type],
   );
 
+  const handleSave = useCallback(() => {
+    onSave?.();
+    close();
+    trackSavedDataUsed(type, 'saved');
+  }, [close, onSave, type]);
+
+  const activate = useCallback(
+    (id: string) => {
+      if (id === SAVE_OPTION_ID) {
+        handleSave();
+        return;
+      }
+      const option = filteredOptions.find((o) => o.id === id);
+      if (option) handleSelect(option);
+    },
+    [filteredOptions, handleSave, handleSelect],
+  );
+
+  // Focus the search field once the panel is rendered.
+  useEffect(() => {
+    if (isOpen) inputRef.current?.focus();
+  }, [isOpen]);
+
+  // Keep the active option scrolled into view during keyboard navigation.
+  useEffect(() => {
+    if (!activeId || !listRef.current) return;
+    listRef.current
+      .querySelector(`#${CSS.escape(optionDomId(activeId))}`)
+      ?.scrollIntoView({ block: 'nearest' });
+    // optionDomId is derived from baseId, which is stable for the component.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
+
+  // Dismiss on an outside pointer press. Keyboard dismissal is handled by
+  // Escape and by the focusout below, so this is only the mouse path.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        close({ restoreFocus: false });
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [isOpen, close]);
+
+  const moveActive = (delta: number) => {
+    if (!navigableIds.length) return;
+    const currentIndex = activeId ? navigableIds.indexOf(activeId) : -1;
+    const nextIndex =
+      currentIndex === -1
+        ? delta > 0
+          ? 0
+          : navigableIds.length - 1
+        : (currentIndex + delta + navigableIds.length) % navigableIds.length;
+    setActiveId(navigableIds[nextIndex]);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        if (!isOpen) open();
+        else moveActive(1);
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        if (!isOpen) open();
+        else moveActive(-1);
+        break;
+      case 'Home':
+        if (isOpen && navigableIds.length) {
+          event.preventDefault();
+          setActiveId(navigableIds[0]);
+        }
+        break;
+      case 'End':
+        if (isOpen && navigableIds.length) {
+          event.preventDefault();
+          setActiveId(navigableIds[navigableIds.length - 1]);
+        }
+        break;
+      case 'Enter':
+        if (isOpen && activeId) {
+          event.preventDefault();
+          activate(activeId);
+        }
+        break;
+      case 'Escape':
+        if (isOpen) {
+          event.preventDefault();
+          close();
+        }
+        break;
+      case 'Tab':
+        // Leaving the composite dismisses it, but let focus move naturally.
+        if (isOpen) close({ restoreFocus: false });
+        break;
+      default:
+        break;
+    }
+  };
+
+  const count = formattedOptions.length;
+
   return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
+    <div className={`relative ${className}`} ref={containerRef}>
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => !disabled && setIsOpen(!isOpen)}
+        role="combobox"
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? listboxId : undefined}
+        aria-haspopup="listbox"
+        aria-label={`${label}: choose from ${count} saved ${
+          type === 'company' ? 'companies' : 'items'
+        }`}
         disabled={disabled}
-        className={`
-          w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-lg 
-          focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white
-          ${disabled ? 'bg-gray-100 cursor-not-allowed' : 'hover:border-gray-400 cursor-pointer'}
-          ${isOpen ? 'ring-2 ring-blue-500 border-transparent' : ''}
-        `}
+        onClick={() => (isOpen ? close({ restoreFocus: false }) : open())}
+        onKeyDown={handleKeyDown}
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-dashed border-border bg-transparent px-3 py-1.5 text-left transition-colors hover:border-brand hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <span className={`text-sm ${!value ? 'text-gray-500' : 'text-gray-900'}`}>
-          {value || placeholder}
-        </span>
-        <div className="flex items-center gap-2">
-          {formattedOptions.length > 0 && (
-            <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
-              {formattedOptions.length}
+        {/*
+          Shows the action, never the current value. Mirroring `value` made the
+          trigger look like a second copy of the field directly beneath it --
+          two boxes with identical text and no indication of which to edit.
+        */}
+        <span className="truncate text-sm text-fg-muted">{placeholder}</span>
+        <span className="flex shrink-0 items-center gap-2">
+          {count > 0 && (
+            <span className="rounded-full bg-brand-subtle px-1.5 py-0.5 text-xs font-medium text-brand-text">
+              {count}
             </span>
           )}
-          <svg
-            className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
+          <ChevronDownIcon
+            className={`size-4 text-fg-muted transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          />
+        </span>
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
-          {/* Search input */}
-          <div className="p-2 border-b border-gray-200">
+        <div className="absolute z-40 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-raised">
+          <div className="relative border-b border-border p-2">
+            <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-fg-muted" />
             <input
+              ref={inputRef}
               type="text"
-              placeholder={`Search ${type === 'company' ? 'companies' : 'items'}...`}
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-              autoFocus
+              onChange={(event) => {
+                setSearchTerm(event.target.value);
+                setActiveId(null);
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder={`Search ${type === 'company' ? 'companies' : 'items'}`}
+              aria-label={`Search saved ${type === 'company' ? 'companies' : 'items'}`}
+              aria-controls={listboxId}
+              aria-activedescendant={activeId ? optionDomId(activeId) : undefined}
+              autoComplete="off"
+              className="w-full rounded-md border border-border-strong bg-surface py-2 pl-8 pr-3 text-sm text-fg placeholder:text-fg-muted"
             />
           </div>
 
-          {/* Options list */}
-          <div className="max-h-40 overflow-y-auto">
-            {filteredOptions.length === 0 && searchTerm ? (
-              <div className="px-3 py-2 text-sm text-gray-500 text-center">
-                No {type === 'company' ? 'companies' : 'items'} found
-              </div>
-            ) : (
-              filteredOptions.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => handleOptionSelect(option)}
-                  className="w-full text-left px-3 py-3 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 focus:bg-blue-50 focus:outline-none"
-                >
-                  <div className="text-sm font-medium text-gray-900 truncate">{option.label}</div>
-                  {option.secondaryValue && (
-                    <div className="text-xs text-gray-500 mt-1 line-clamp-2">{option.secondaryValue}</div>
-                  )}
-                  {option.defaultPrice && (
-                    <div className="text-xs text-blue-600 mt-1 font-medium">Default price: {option.defaultPrice.toFixed(2)}</div>
-                  )}
-                </button>
-              ))
-            )}
-          </div>
-
-          {/* Save current option */}
-          {showSaveOption && (
-            <div className="border-t border-gray-200 p-2">
-              <button
-                type="button"
-                onClick={handleSaveClick}
-                className="w-full px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors flex items-center gap-2"
+          <ul
+            ref={listRef}
+            id={listboxId}
+            role="listbox"
+            aria-label={`Saved ${type === 'company' ? 'companies' : 'items'}`}
+            className="max-h-56 overflow-y-auto py-1"
+          >
+            {filteredOptions.map((option) => (
+              // Options are deliberately not focusable and carry no keydown
+              // handler. In the APG combobox pattern keyboard interaction lives
+              // on the input, with the active option tracked via
+              // aria-activedescendant (see handleKeyDown above). Focusing each
+              // option to attach a key handler would interrupt typing. This
+              // click handler is the pointer path only.
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+              <li
+                key={option.id}
+                id={optionDomId(option.id)}
+                role="option"
+                aria-selected={activeId === option.id}
+                onClick={() => handleSelect(option)}
+                onMouseEnter={() => setActiveId(option.id)}
+                className={`cursor-pointer px-3 py-2.5 ${
+                  activeId === option.id ? 'bg-brand-subtle' : ''
+                }`}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Save &quot;{value}&quot; for future use
-              </button>
-            </div>
-          )}
+                <span className="block truncate text-sm font-medium text-fg">{option.label}</span>
+                {option.secondaryValue && (
+                  <span className="mt-0.5 block truncate text-xs text-fg-muted">
+                    {option.secondaryValue}
+                  </span>
+                )}
+                {option.defaultPrice !== undefined && (
+                  <span className="mt-0.5 block text-xs font-medium text-brand-text">
+                    Default price: {option.defaultPrice.toFixed(2)}
+                  </span>
+                )}
+              </li>
+            ))}
 
-          {/* Empty state */}
-          {filteredOptions.length === 0 && !searchTerm && (
-            <div className="px-3 py-4 text-sm text-gray-500 text-center">
-              <div className="mb-2">No saved {type === 'company' ? 'companies' : 'items'} yet</div>
-              <div className="text-xs">
-                {type === 'company' 
-                  ? 'Fill in company details and they\'ll be saved automatically' 
-                  : 'Add item descriptions and they\'ll be saved for reuse'
-                }
-              </div>
-            </div>
-          )}
+            {showSaveOption && (
+              /* eslint-disable-next-line jsx-a11y/click-events-have-key-events */
+              <li
+                id={optionDomId(SAVE_OPTION_ID)}
+                role="option"
+                aria-selected={activeId === SAVE_OPTION_ID}
+                onClick={handleSave}
+                onMouseEnter={() => setActiveId(SAVE_OPTION_ID)}
+                className={`flex cursor-pointer items-center gap-2 border-t border-border px-3 py-2.5 text-sm font-medium text-brand-text ${
+                  activeId === SAVE_OPTION_ID ? 'bg-brand-subtle' : ''
+                }`}
+              >
+                <PlusIcon className="size-4 shrink-0" />
+                <span className="truncate">Save &ldquo;{value}&rdquo; for future use</span>
+              </li>
+            )}
+
+            {!filteredOptions.length && !showSaveOption && (
+              <li role="presentation" className="px-3 py-6 text-center text-sm text-fg-muted">
+                {searchTerm
+                  ? `No ${type === 'company' ? 'companies' : 'items'} match “${searchTerm}”`
+                  : `No saved ${type === 'company' ? 'companies' : 'items'} yet`}
+              </li>
+            )}
+          </ul>
         </div>
       )}
     </div>

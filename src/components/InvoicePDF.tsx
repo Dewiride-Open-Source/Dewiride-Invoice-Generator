@@ -1,6 +1,6 @@
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
-import { InvoiceData } from './InvoiceForm';
+import { Document, Font, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
+import { InvoiceData } from '../types/invoice';
 import { formatCurrency } from '../utils/currency';
 import { computeTotals, lineTotal } from '../utils/totals';
 
@@ -8,13 +8,35 @@ interface InvoicePDFProps {
   data: InvoiceData;
 }
 
+/**
+ * A Unicode font is required for currency symbols.
+ *
+ * @react-pdf's built-in Helvetica uses WinAnsiEncoding, which has no glyph for
+ * ₹, ₩, ₪, ₫ and most other currency signs -- they rendered as blanks, which is
+ * why the app used to print "INR 1,234.00" instead of "₹1,234.00".
+ *
+ * These are subsets built by scripts/build-pdf-fonts.mjs: ~61 KB per weight
+ * instead of ~557 KB. They are fetched at PDF-generation time, so they cost
+ * nothing on first paint, and only once per session thereafter.
+ */
+Font.register({
+  family: 'NotoSans',
+  fonts: [
+    { src: '/fonts/NotoSans-Regular.subset.ttf', fontWeight: 'normal' },
+    { src: '/fonts/NotoSans-Bold.subset.ttf', fontWeight: 'bold' },
+  ],
+});
+
+// Currency values must never be split across lines mid-symbol.
+Font.registerHyphenationCallback((word) => [word]);
+
 const styles = StyleSheet.create({
   page: {
     flexDirection: 'column',
     backgroundColor: '#ffffff',
     padding: 50,
     fontSize: 10,
-    fontFamily: 'Helvetica',
+    fontFamily: 'NotoSans',
     lineHeight: 1.4,
   },
   header: {
@@ -266,7 +288,7 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ data }) => {
                 styles.tableRow, 
                 index % 2 === 0 ? styles.tableRowEven : styles.tableRowOdd
               ]} 
-              key={index}
+              key={item.id}
             >
               <View style={styles.tableColDescription}>
                 <Text style={styles.tableCell}>{item.description}</Text>

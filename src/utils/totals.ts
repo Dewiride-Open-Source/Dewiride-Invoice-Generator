@@ -1,4 +1,4 @@
-import { InvoiceData, InvoiceItem } from '../components/InvoiceForm';
+import { InvoiceData, InvoiceItem } from '../types/invoice';
 
 export interface InvoiceTotals {
   subtotal: number;

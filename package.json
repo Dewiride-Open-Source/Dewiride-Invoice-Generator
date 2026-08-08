@@ -13,7 +13,10 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf .next out",
-    "size": "node scripts/measure-first-paint.mjs"
+    "size": "node scripts/measure-first-paint.mjs",
+    "check:contrast": "node scripts/check-contrast.mjs",
+    "test": "playwright test",
+    "build:fonts": "node scripts/build-pdf-fonts.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.5.1",
@@ -30,6 +33,7 @@
     "@types/react-dom": "^19.2.4",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.0",
+    "subset-font": "^2.5.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3"
   }

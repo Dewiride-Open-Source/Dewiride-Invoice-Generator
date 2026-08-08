@@ -44,3 +44,8 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /blob-report/
+
+# Full upstream fonts: sources for the PDF subsets only, re-downloaded by
+# `npm run build:fonts`. Never put these in public/ -- everything there is
+# deployed, and they are 1.1 MB of dead weight on the CDN.
+/assets/fonts/*.ttf
