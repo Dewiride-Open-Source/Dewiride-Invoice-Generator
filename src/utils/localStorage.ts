@@ -198,42 +198,6 @@ const generateId = (): string => {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 };
 
-// Search functionality
-export const searchFromCompanies = (query: string): CompanyDetails[] => {
-  if (!query.trim()) return getFromCompanies();
-  
-  const companies = getFromCompanies();
-  const searchTerm = query.toLowerCase();
-  
-  return companies.filter(c => 
-    c.name.toLowerCase().includes(searchTerm) || 
-    c.address.toLowerCase().includes(searchTerm)
-  );
-};
-
-export const searchToCompanies = (query: string): CompanyDetails[] => {
-  if (!query.trim()) return getToCompanies();
-  
-  const companies = getToCompanies();
-  const searchTerm = query.toLowerCase();
-  
-  return companies.filter(c => 
-    c.name.toLowerCase().includes(searchTerm) || 
-    c.address.toLowerCase().includes(searchTerm)
-  );
-};
-
-export const searchItemDescriptions = (query: string): ItemDescription[] => {
-  if (!query.trim()) return getItemDescriptions();
-  
-  const items = getItemDescriptions();
-  const searchTerm = query.toLowerCase();
-  
-  return items.filter(i => 
-    i.description.toLowerCase().includes(searchTerm)
-  );
-};
-
 // Utility functions for clearing data
 export const clearFromCompanies = (): void => {
   localStorage.removeItem(STORAGE_KEYS.FROM_COMPANIES);

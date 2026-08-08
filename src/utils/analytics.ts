@@ -10,7 +10,6 @@ declare global {
       targetId: string | Date,
       config?: Record<string, any>
     ) => void;
-    dataLayer: any[];
   }
 }
 
@@ -90,21 +89,6 @@ export const trackFormProgress = (progress: 'basic_info' | 'invoice_details' | '
       event_label: progress,
       custom_parameters: {
         progress_stage: progress,
-      },
-    });
-  }
-};
-
-// Track page engagement
-export const trackPageEngagement = (engagementType: 'scroll_depth' | 'time_on_page', value: number) => {
-  if (typeof window !== 'undefined' && window.gtag) {
-    window.gtag('event', 'page_engagement', {
-      event_category: 'Engagement',
-      event_label: engagementType,
-      value: value,
-      custom_parameters: {
-        engagement_type: engagementType,
-        engagement_value: value,
       },
     });
   }

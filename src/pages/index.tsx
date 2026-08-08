@@ -312,9 +312,7 @@ export default function Home() {
           </section>
           <section className="flex-1 bg-white rounded shadow p-4" aria-label="Invoice Preview">
             <h2 className="text-2xl font-semibold mb-4 text-gray-800">Invoice Preview</h2>
-            <div id="invoice-preview-pdf">
-              <InvoicePreview data={invoice} />
-            </div>
+            <InvoicePreview data={invoice} />
             <div className="mt-4 flex justify-end">
               <DownloadPDFButton data={invoice} />
             </div>
