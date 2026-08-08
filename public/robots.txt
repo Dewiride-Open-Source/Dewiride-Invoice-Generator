@@ -1,27 +1,4 @@
 User-agent: *
 Allow: /
 
-# Sitemap
 Sitemap: https://invoice.dewiride.com/sitemap.xml
-
-# Crawl-delay for respectful crawling
-Crawl-delay: 1
-
-# Block common bot paths (optional)
-Disallow: /api/
-Disallow: /_next/
-Disallow: /404
-Disallow: /500
-
-# Allow specific important paths
-Allow: /
-
-# Additional directives for major search engines
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Slurp
-Allow: /

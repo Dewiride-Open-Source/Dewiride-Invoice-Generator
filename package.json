@@ -16,7 +16,9 @@
     "size": "node scripts/measure-first-paint.mjs",
     "check:contrast": "node scripts/check-contrast.mjs",
     "test": "playwright test",
-    "build:fonts": "node scripts/build-pdf-fonts.mjs"
+    "build:fonts": "node scripts/build-pdf-fonts.mjs",
+    "build:og": "node scripts/build-og-image.mjs",
+    "build:icons": "node scripts/build-icons.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.5.1",

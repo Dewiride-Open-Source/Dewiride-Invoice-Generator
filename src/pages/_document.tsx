@@ -161,6 +161,8 @@ export default function Document() {
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32" />
         <link rel="icon" href="/favicon-16x16.png" type="image/png" sizes="16x16" />
+        {/* Modern browsers prefer the vector; the ICO/PNGs above cover the rest. */}
+        <link rel="icon" href="/logo.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         {/* manifest.json is the complete one; site.webmanifest was an empty-name stub. */}
         <link rel="manifest" href="/manifest.json" />

@@ -1,13 +1,17 @@
 {
   "name": "Dewiride Invoice Generator",
-  "short_name": "DewidieInvoice",
+  "short_name": "Dewiride Invoice",
   "description": "Free professional invoice generator by Dewiride Technologies - Create, customize and download PDF invoices instantly",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#2563eb",
   "orientation": "portrait-primary",
-  "categories": ["business", "productivity", "finance"],
+  "categories": [
+    "business",
+    "productivity",
+    "finance"
+  ],
   "lang": "en",
   "icons": [
     {
@@ -45,11 +49,11 @@
   ],
   "screenshots": [
     {
-      "src": "/invoice-generator-preview.png",
-      "sizes": "1280x720",
+      "src": "/og-image.png",
+      "sizes": "1200x630",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Dewiride Invoice Generator Interface"
+      "label": "Invoice editor with live preview"
     }
   ],
   "shortcuts": [
