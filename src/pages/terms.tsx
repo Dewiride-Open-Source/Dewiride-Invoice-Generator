@@ -78,7 +78,7 @@ export default function Terms() {
                 <li>Create false or misleading invoices</li>
                 <li>Attempt to reverse engineer, copy, or replicate the service</li>
                 <li>Remove any copyright, trademark, or other proprietary notices</li>
-                <li>Attempt to gain unauthorized access to our systems or other users' data</li>
+                <li>Attempt to gain unauthorized access to our systems or other users&rsquo; data</li>
                 <li>Use automated tools to abuse or overload our service</li>
                 <li>Violate any applicable laws or regulations</li>
                 <li>Interfere with or disrupt the service or servers</li>
@@ -130,7 +130,7 @@ export default function Terms() {
 
               <h3 className="text-xl font-semibold text-gray-800 mb-3">Disclaimer of Warranties</h3>
               <p className="text-gray-600 mb-6">
-                The Dewiride Technologies Invoice Generator is provided on an "as is" and "as available" basis. 
+                The Dewiride Technologies Invoice Generator is provided on an &quot;as is&quot; and &quot;as available&quot; basis. 
                 We make no warranties, expressed or implied, including but not limited to warranties of merchantability, 
                 fitness for a particular purpose, or non-infringement of intellectual property rights.
               </p>

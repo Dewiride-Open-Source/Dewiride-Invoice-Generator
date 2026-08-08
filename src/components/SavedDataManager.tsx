@@ -1,58 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-  getFromCompanies,
-  getToCompanies,
-  getItemDescriptions,
   deleteFromCompany,
   deleteToCompany,
   deleteItemDescription,
   clearAllSavedData,
-  CompanyDetails,
-  ItemDescription,
-} from '../utils/localStorage';
+} from '../utils/savedData';
+import {
+  useFromCompanies,
+  useItemDescriptions,
+  useToCompanies,
+} from '../hooks/useSavedData';
 
 interface SavedDataManagerProps {
   isOpen: boolean;
   onClose: () => void;
-  onDataChanged?: () => void;
 }
 
-const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose, onDataChanged }) => {
-  const [fromCompanies, setFromCompanies] = useState<CompanyDetails[]>([]);
-  const [toCompanies, setToCompanies] = useState<CompanyDetails[]>([]);
-  const [itemDescriptions, setItemDescriptions] = useState<ItemDescription[]>([]);
+const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose }) => {
+  // The store is the single source of truth; deletes below re-render every
+  // subscriber, including the dropdowns in the form.
+  const fromCompanies = useFromCompanies();
+  const toCompanies = useToCompanies();
+  const itemDescriptions = useItemDescriptions();
   const [activeTab, setActiveTab] = useState<'from' | 'to' | 'items'>('from');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) {
-      loadData();
-    }
-  }, [isOpen]);
-
-  const loadData = () => {
-    setFromCompanies(getFromCompanies());
-    setToCompanies(getToCompanies());
-    setItemDescriptions(getItemDescriptions());
-  };
-
-  const handleDeleteFromCompany = (id: string) => {
-    deleteFromCompany(id);
-    setFromCompanies(getFromCompanies());
-    onDataChanged?.();
-  };
-
-  const handleDeleteToCompany = (id: string) => {
-    deleteToCompany(id);
-    setToCompanies(getToCompanies());
-    onDataChanged?.();
-  };
-
-  const handleDeleteItemDescription = (id: string) => {
-    deleteItemDescription(id);
-    setItemDescriptions(getItemDescriptions());
-    onDataChanged?.();
-  };
 
   const handleClearAll = () => {
     setShowConfirmDialog(true);
@@ -60,8 +31,6 @@ const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose, on
 
   const confirmClearAll = () => {
     clearAllSavedData();
-    loadData();
-    onDataChanged?.();
     setShowConfirmDialog(false);
   };
 
@@ -130,7 +99,7 @@ const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose, on
           {activeTab === 'from' && (
             <div className="space-y-4">
               {fromCompanies.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No saved "From" companies yet.</p>
+                <p className="text-gray-500 text-center py-8">No saved &quot;From&quot; companies yet.</p>
               ) : (
                 fromCompanies.map((company) => (
                   <div key={company.id} className="border border-gray-200 rounded-lg p-4">
@@ -143,7 +112,7 @@ const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose, on
                         </p>
                       </div>
                       <button
-                        onClick={() => handleDeleteFromCompany(company.id)}
+                        onClick={() => deleteFromCompany(company.id)}
                         className="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded transition-colors"
                         title="Delete company"
                       >
@@ -161,7 +130,7 @@ const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose, on
           {activeTab === 'to' && (
             <div className="space-y-4">
               {toCompanies.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No saved "To" companies yet.</p>
+                <p className="text-gray-500 text-center py-8">No saved &quot;To&quot; companies yet.</p>
               ) : (
                 toCompanies.map((company) => (
                   <div key={company.id} className="border border-gray-200 rounded-lg p-4">
@@ -174,7 +143,7 @@ const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose, on
                         </p>
                       </div>
                       <button
-                        onClick={() => handleDeleteToCompany(company.id)}
+                        onClick={() => deleteToCompany(company.id)}
                         className="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded transition-colors"
                         title="Delete company"
                       >
@@ -209,7 +178,7 @@ const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose, on
                         </p>
                       </div>
                       <button
-                        onClick={() => handleDeleteItemDescription(item.id)}
+                        onClick={() => deleteItemDescription(item.id)}
                         className="text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded transition-colors"
                         title="Delete item"
                       >
@@ -265,8 +234,8 @@ const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose, on
                     Are you sure you want to clear all saved data? This will permanently delete:
                   </p>
                   <ul className="mt-3 text-sm text-gray-600 space-y-1">
-                    <li>• {fromCompanies.length} saved "From" companies</li>
-                    <li>• {toCompanies.length} saved "To" companies</li>
+                    <li>• {fromCompanies.length} saved &quot;From&quot; companies</li>
+                    <li>• {toCompanies.length} saved &quot;To&quot; companies</li>
                     <li>• {itemDescriptions.length} saved item descriptions</li>
                   </ul>
                   <p className="mt-3 text-sm font-medium text-red-600">

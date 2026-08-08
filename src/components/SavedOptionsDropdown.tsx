@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { CompanyDetails, ItemDescription } from '../utils/localStorage';
+import { CompanyDetails, ItemDescription } from '../utils/savedData';
 import { trackSavedDataUsed } from '../utils/analytics';
 
 interface Option {
@@ -15,7 +15,7 @@ interface SavedOptionsDropdownProps {
   secondaryValue?: string;
   onSelect: (value: string, secondaryValue?: string, defaultPrice?: number) => void;
   onSave?: () => void;
-  options: CompanyDetails[] | ItemDescription[];
+  options: readonly CompanyDetails[] | readonly ItemDescription[];
   placeholder: string;
   type: 'company' | 'item';
   disabled?: boolean;
@@ -35,16 +35,11 @@ const SavedOptionsDropdown: React.FC<SavedOptionsDropdownProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isClient, setIsClient] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Ensure component only shows saved options after client-side hydration
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  // Convert options to standardized format - only use options after client hydration
-  const formattedOptions: Option[] = isClient ? options.map(option => {
+  // `options` comes from the saved-data store, which reports an empty list
+  // during the static export, so this needs no hydration guard of its own.
+  const formattedOptions: Option[] = options.map(option => {
     if (type === 'company') {
       const company = option as CompanyDetails;
       return {
@@ -62,7 +57,7 @@ const SavedOptionsDropdown: React.FC<SavedOptionsDropdownProps> = ({
         defaultPrice: item.defaultPrice,
       };
     }
-  }) : [];
+  });
 
   // Filter options based on search term
   const filteredOptions = formattedOptions.filter(option =>
@@ -105,7 +100,7 @@ const SavedOptionsDropdown: React.FC<SavedOptionsDropdownProps> = ({
   const hasValidInput = value.trim().length > 0 && 
     (type === 'item' || (secondaryValue && secondaryValue.trim().length > 0));
 
-  const showSaveOption = onSave && hasValidInput && isClient && !filteredOptions.some(option => 
+  const showSaveOption = onSave && hasValidInput && !filteredOptions.some(option => 
     option.value.toLowerCase() === value.toLowerCase() &&
     (type === 'item' || option.secondaryValue?.toLowerCase() === secondaryValue?.toLowerCase())
   );
@@ -127,7 +122,7 @@ const SavedOptionsDropdown: React.FC<SavedOptionsDropdownProps> = ({
           {value || placeholder}
         </span>
         <div className="flex items-center gap-2">
-          {isClient && formattedOptions.length > 0 && (
+          {formattedOptions.length > 0 && (
             <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
               {formattedOptions.length}
             </span>
@@ -194,7 +189,7 @@ const SavedOptionsDropdown: React.FC<SavedOptionsDropdownProps> = ({
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Save "{value}" for future use
+                Save &quot;{value}&quot; for future use
               </button>
             </div>
           )}

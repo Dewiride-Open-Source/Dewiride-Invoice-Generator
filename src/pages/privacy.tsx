@@ -88,8 +88,8 @@ export default function Privacy() {
                 <li><strong>Local Storage:</strong> Company details and item descriptions you choose to save for future use (this helps you create invoices faster by providing quick-select dropdowns)</li>
               </ul>
               <p className="text-gray-600 mb-6">
-                <strong>Complete Privacy:</strong> All data stored locally never leaves your device - it's not transmitted to our servers or any third parties.
-                You can clear this data anytime using your browser settings or our "Manage Saved Data" feature in the app.
+                <strong>Complete Privacy:</strong> All data stored locally never leaves your device - it&rsquo;s not transmitted to our servers or any third parties.
+                You can clear this data anytime using your browser settings or our &quot;Manage Saved Data&quot; feature in the app.
               </p>
 
               <h3 className="text-xl font-semibold text-gray-800 mb-3">Server Storage</h3>
@@ -131,7 +131,7 @@ export default function Privacy() {
               
               <h3 className="text-xl font-semibold text-gray-800 mb-3">Data Control</h3>
               <ul className="list-disc pl-6 text-gray-600 mb-6 space-y-2">
-                <li>You can clear all locally stored data using our "Manage Saved Data" feature in the app</li>
+                <li>You can clear all locally stored data using our &quot;Manage Saved Data&quot; feature in the app</li>
                 <li>You can view, delete individual entries, or clear all saved companies and items</li>
                 <li>You can disable analytics by using browser settings, ad-blockers, or the Google Analytics opt-out add-on</li>
                 <li>No registration is required - you can use the service completely anonymously</li>
@@ -148,18 +148,18 @@ export default function Privacy() {
 
               <h2 className="text-2xl font-semibold text-gray-800 mb-4">Data Security</h2>
               <p className="text-gray-600 mb-6">
-                Since we don't collect or store your personal information on our servers, there's minimal risk 
+                Since we don&rsquo;t collect or store your personal information on our servers, there&rsquo;s minimal risk 
                 of your invoice data being compromised. All invoice generation and data processing happens 
                 securely in your browser using modern web technologies.
               </p>
 
               <h2 className="text-2xl font-semibold text-gray-800 mb-4">International Users</h2>
               <p className="text-gray-600 mb-6">
-                Our service is available globally. If you're located outside of India, please note that 
+                Our service is available globally. If you&rsquo;re located outside of India, please note that 
                 Google Analytics may process data according to their international data transfer policies.
               </p>
 
-              <h2 className="text-2xl font-semibold text-gray-800 mb-4">Children's Privacy</h2>
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">Children&rsquo;s Privacy</h2>
               <p className="text-gray-600 mb-6">
                 Our service is not specifically designed for children under 13. We do not knowingly collect 
                 personal information from children under 13.
@@ -167,7 +167,7 @@ export default function Privacy() {
 
               <h3 className="text-xl font-semibold text-gray-800 mb-3">Security</h3>
               <p className="text-gray-600 mb-6">
-                Since we don't collect or store your personal information, there's no risk of your invoice data 
+                Since we don&rsquo;t collect or store your personal information, there&rsquo;s no risk of your invoice data 
                 being compromised on our servers. All invoice generation happens in your browser.
               </p>
 

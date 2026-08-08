@@ -3,9 +3,9 @@ import Head from 'next/head';
 import Link from 'next/link';
 import InvoiceForm, { InvoiceData } from '../components/InvoiceForm';
 import InvoicePreview from '../components/InvoicePreview';
-import DownloadPDFButton from '../components/DownloadPDFButtonNew';
+import DownloadPDFButton from '../components/DownloadPDFButton';
 import SavedDataManager from '../components/SavedDataManager';
-import { saveFromCompany, saveToCompany, saveItemDescription } from '../utils/localStorage';
+import { saveFromCompany, saveToCompany, saveItemDescription } from '../utils/savedData';
 import { trackSavedDataManagerOpened, trackFormProgress, trackInvoiceGenerated } from '../utils/analytics';
 import { computeTotals } from '../utils/totals';
 
@@ -27,7 +27,6 @@ const defaultInvoice: InvoiceData = {
 export default function Home() {
   const [invoice, setInvoice] = useState<InvoiceData>(defaultInvoice);
   const [showSavedDataManager, setShowSavedDataManager] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   // Refs to store timeout IDs for debouncing
   const saveTimeoutsRef = useRef<{
@@ -44,6 +43,9 @@ export default function Home() {
       const saved = sessionStorage.getItem('invoice-data');
       if (saved) {
         try {
+          // Restoring the sessionStorage draft. Reading it during render
+          // would break hydration against the prerendered HTML.
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setInvoice(JSON.parse(saved));
         } catch {
           // If parsing fails, keep default invoice
@@ -172,14 +174,14 @@ export default function Home() {
 
   // Cleanup timeouts on unmount
   useEffect(() => {
+    // Captured here rather than read in the cleanup closure: the ref's
+    // contents are mutated throughout the component's life, and reading
+    // `.current` at teardown is the pattern exhaustive-deps warns about.
+    const timeouts = saveTimeoutsRef.current;
     return () => {
-      if (saveTimeoutsRef.current.fromCompany) {
-        clearTimeout(saveTimeoutsRef.current.fromCompany);
-      }
-      if (saveTimeoutsRef.current.toCompany) {
-        clearTimeout(saveTimeoutsRef.current.toCompany);
-      }
-      saveTimeoutsRef.current.items.forEach(timeout => clearTimeout(timeout));
+      if (timeouts.fromCompany) clearTimeout(timeouts.fromCompany);
+      if (timeouts.toCompany) clearTimeout(timeouts.toCompany);
+      timeouts.items.forEach(timeout => clearTimeout(timeout));
     };
   }, []);
 
@@ -268,7 +270,7 @@ export default function Home() {
             </h1>
           </div>
           <p className="text-lg text-gray-600 max-w-2xl mb-4">
-            Create professional invoices in minutes with Dewiride Technologies' free online invoice generator. 
+            Create professional invoices in minutes with Dewiride Technologies&rsquo; free online invoice generator. 
             Generate, customize, and download PDF invoices instantly with multiple currency support. 
             Perfect for freelancers, small businesses, and entrepreneurs. No registration required!
           </p>
@@ -307,11 +309,7 @@ export default function Home() {
                 Manage Saved Data
               </button>
             </div>
-            <InvoiceForm 
-              data={invoice} 
-              onChange={handleInvoiceChange}
-              refreshTrigger={refreshTrigger}
-            />
+            <InvoiceForm data={invoice} onChange={handleInvoiceChange} />
           </section>
           <section className="flex-1 bg-white rounded shadow p-4" aria-label="Invoice Preview">
             <h2 className="text-2xl font-semibold mb-4 text-gray-800">Invoice Preview</h2>
@@ -325,7 +323,7 @@ export default function Home() {
         {/* Enhanced Features Section for SEO */}
         <section className="w-full max-w-6xl mb-12 bg-white rounded-lg shadow p-8">
           <h2 className="text-3xl font-bold text-center mb-8 text-gray-800">
-            Why Choose Dewiride Technologies' Free Invoice Generator?
+            Why Choose Dewiride Technologies&rsquo; Free Invoice Generator?
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="text-center">
@@ -370,13 +368,13 @@ export default function Home() {
                 <li className="flex items-start">
                   <span className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-semibold mr-3">1</span>
                   <div>
-                    <strong>Enter Your Business Details:</strong> Fill in your company name, address, and contact information in the "From" section.
+                    <strong>Enter Your Business Details:</strong> Fill in your company name, address, and contact information in the &quot;From&quot; section.
                   </div>
                 </li>
                 <li className="flex items-start">
                   <span className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-semibold mr-3">2</span>
                   <div>
-                    <strong>Add Client Information:</strong> Enter your client's name and billing address in the "To" section.
+                    <strong>Add Client Information:</strong> Enter your client&rsquo;s name and billing address in the &quot;To&quot; section.
                   </div>
                 </li>
                 <li className="flex items-start">
@@ -404,7 +402,7 @@ export default function Home() {
                 <li className="flex items-start">
                   <span className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-semibold mr-3">6</span>
                   <div>
-                    <strong>Download PDF:</strong> Click "Download PDF" to get your professional invoice ready to send.
+                    <strong>Download PDF:</strong> Click &quot;Download PDF&quot; to get your professional invoice ready to send.
                   </div>
                 </li>
               </ol>
@@ -442,7 +440,7 @@ export default function Home() {
             <div>
               <h3 className="font-semibold text-gray-800 mb-2">Are my invoice data saved automatically?</h3>
               <p className="text-gray-600">
-                Yes, your invoice data is automatically saved in your browser session, so you won't lose 
+                Yes, your invoice data is automatically saved in your browser session, so you won&rsquo;t lose 
                 your progress if you accidentally refresh the page.
               </p>
             </div>
@@ -456,7 +454,7 @@ export default function Home() {
               Start Creating Professional Invoices Today
             </h2>
             <p className="text-gray-600 mb-6 max-w-3xl mx-auto">
-              Join thousands of freelancers, consultants, and small business owners who trust Dewiride Technologies' free invoice generator 
+              Join thousands of freelancers, consultants, and small business owners who trust Dewiride Technologies&rsquo; free invoice generator 
               to create professional invoices. No registration required - start now and download your first invoice in minutes!
             </p>
             
@@ -520,7 +518,6 @@ export default function Home() {
         <SavedDataManager
           isOpen={showSavedDataManager}
           onClose={() => setShowSavedDataManager(false)}
-          onDataChanged={() => setRefreshTrigger(prev => prev + 1)}
         />
       </div>
     </>

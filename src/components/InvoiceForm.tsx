@@ -1,15 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import SavedOptionsDropdown from './SavedOptionsDropdown';
+import { saveFromCompany, saveToCompany, saveItemDescription } from '../utils/savedData';
 import {
-  saveFromCompany,
-  saveToCompany,
-  saveItemDescription,
-  getFromCompanies,
-  getToCompanies,
-  getItemDescriptions,
-  CompanyDetails,
-  ItemDescription,
-} from '../utils/localStorage';
+  useFromCompanies,
+  useItemDescriptions,
+  useToCompanies,
+} from '../hooks/useSavedData';
 import { trackCurrencyChange } from '../utils/analytics';
 
 export interface InvoiceItem {
@@ -34,42 +30,26 @@ export interface InvoiceData {
 interface InvoiceFormProps {
   data: InvoiceData;
   onChange: (data: InvoiceData) => void;
-  refreshTrigger?: number;
 }
 
-const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange, refreshTrigger }) => {
-  const [fromCompanies, setFromCompanies] = useState<CompanyDetails[]>([]);
-  const [toCompanies, setToCompanies] = useState<CompanyDetails[]>([]);
-  const [itemDescriptions, setItemDescriptions] = useState<ItemDescription[]>([]);
-  const [isClient, setIsClient] = useState(false);
+const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
+  // Subscribed to the store rather than mirrored into local state: a save or
+  // delete anywhere in the app re-renders this form automatically, and the
+  // server snapshot is empty so the static export hydrates cleanly.
+  const fromCompanies = useFromCompanies();
+  const toCompanies = useToCompanies();
+  const itemDescriptions = useItemDescriptions();
 
-  // Load saved data only on client side to prevent hydration mismatch
-  useEffect(() => {
-    setIsClient(true);
-    setFromCompanies(getFromCompanies());
-    setToCompanies(getToCompanies());
-    setItemDescriptions(getItemDescriptions());
-  }, []);
-
-  // Refresh saved data when trigger changes
-  useEffect(() => {
-    if (refreshTrigger && refreshTrigger > 0) {
-      setFromCompanies(getFromCompanies());
-      setToCompanies(getToCompanies());
-      setItemDescriptions(getItemDescriptions());
-    }
-  }, [refreshTrigger]);
-
-  const handleFieldChange = (field: keyof InvoiceData, value: any) => {
+  const handleFieldChange = <K extends keyof InvoiceData>(field: K, value: InvoiceData[K]) => {
     // Track currency changes
     if (field === 'currency' && value !== data.currency) {
-      trackCurrencyChange(value);
+      trackCurrencyChange(value as string);
     }
-    
+
     onChange({ ...data, [field]: value });
   };
 
-  const handleItemChange = (index: number, field: keyof InvoiceItem, value: any) => {
+  const handleItemChange = <K extends keyof InvoiceItem>(index: number, field: K, value: InvoiceItem[K]) => {
     const newItems = data.items.map((item, i) =>
       i === index ? { ...item, [field]: value } : item
     );
@@ -106,31 +86,16 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange, refreshTrigge
   };
 
   const handleSaveFromCompany = () => {
-    if (data.fromName && data.fromAddress) {
-      saveFromCompany(data.fromName, data.fromAddress);
-      if (isClient) {
-        setFromCompanies(getFromCompanies());
-      }
-    }
+    saveFromCompany(data.fromName, data.fromAddress);
   };
 
   const handleSaveToCompany = () => {
-    if (data.toName && data.toAddress) {
-      saveToCompany(data.toName, data.toAddress);
-      if (isClient) {
-        setToCompanies(getToCompanies());
-      }
-    }
+    saveToCompany(data.toName, data.toAddress);
   };
 
   const handleSaveItemDescription = (index: number) => {
     const item = data.items[index];
-    if (item.description) {
-      saveItemDescription(item.description, item.price > 0 ? item.price : undefined);
-      if (isClient) {
-        setItemDescriptions(getItemDescriptions());
-      }
-    }
+    saveItemDescription(item.description, item.price > 0 ? item.price : undefined);
   };
 
   return (
