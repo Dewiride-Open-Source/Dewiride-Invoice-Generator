@@ -1,4 +1,5 @@
 import { Html, Head, Main, NextScript } from 'next/document';
+import { GA_INIT_SCRIPT } from '../utils/analytics';
 import { THEME_INIT_SCRIPT } from '../utils/theme';
 
 const SITE_URL = 'https://invoice.dewiride.com';
@@ -118,6 +119,13 @@ export default function Document() {
           one legitimate use of a blocking inline script on this page.
         */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+
+        {/*
+          Just the gtag queue, so events fired before the library arrives are
+          buffered rather than dropped. The library itself is loaded on idle in
+          _app -- see GA_INIT_SCRIPT for why.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: GA_INIT_SCRIPT }} />
 
         <meta
           name="description"

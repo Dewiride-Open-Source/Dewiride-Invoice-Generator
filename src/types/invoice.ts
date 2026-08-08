@@ -96,3 +96,30 @@ export const normaliseInvoice = (raw: unknown): InvoiceData => {
         : base.currency,
   };
 };
+
+export interface InvoiceReadiness {
+  complete: boolean;
+  /** Human-readable names of what is still required, in form order. */
+  missing: string[];
+}
+
+/**
+ * What still has to be filled in before the invoice is worth sending.
+ *
+ * Exposed in the UI as a status line and as a `data-invoice-complete`
+ * attribute. The attribute is not decoration: an automated agent driving this
+ * page otherwise has no deterministic way to tell "finished" from "half-filled"
+ * short of re-implementing this rule, and a screen-reader user has no way to
+ * tell at all.
+ */
+export const getReadiness = (data: InvoiceData): InvoiceReadiness => {
+  const missing: string[] = [];
+  if (!data.fromName.trim()) missing.push('your business name');
+  if (!data.toName.trim()) missing.push('client name');
+  if (!data.invoiceNumber.trim()) missing.push('invoice number');
+  if (!data.invoiceDate) missing.push('invoice date');
+  if (!data.items.some((item) => item.description.trim() && item.quantity > 0 && item.price > 0)) {
+    missing.push('at least one item with a quantity and price');
+  }
+  return { complete: missing.length === 0, missing };
+};

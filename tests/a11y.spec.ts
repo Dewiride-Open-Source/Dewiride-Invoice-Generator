@@ -13,11 +13,21 @@ import AxeBuilder from '@axe-core/playwright';
 const analyse = (page: Page) =>
   new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
 
+/**
+ * Reports the offending selector and axe's own explanation, not just the rule
+ * id -- a bare "color-contrast: 1 node" tells you nothing about which node.
+ */
 const expectNoViolations = (results: Awaited<ReturnType<typeof analyse>>) => {
-  const summary = results.violations.map(
-    (v) => `${v.id} (${v.impact}): ${v.nodes.length} node(s) -- ${v.help}`,
+  const summary = results.violations.flatMap((v) =>
+    v.nodes.map((n) => {
+      const why = [...n.any, ...n.all]
+        .map((c) => c.message)
+        .filter(Boolean)
+        .join('; ');
+      return `${v.id} (${v.impact}) at ${n.target.join(' ')}\n    ${why}\n    ${n.html.slice(0, 120)}`;
+    }),
   );
-  expect(summary, summary.join('\n')).toEqual([]);
+  expect(summary, `\n${summary.join('\n')}\n`).toEqual([]);
 };
 
 test.beforeEach(async ({ page }) => {

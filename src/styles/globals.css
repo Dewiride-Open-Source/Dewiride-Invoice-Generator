@@ -94,10 +94,13 @@
   --fg-muted: #9fb0c9;
 
   /* Lighter blue: #1d4ed8 on a near-black surface is too dim to read as an
-     accent, and pairing it with white would drop below AA. */
-  --brand: #3b82f6;
-  --brand-hover: #60a5fa;
-  --brand-fg: #06111f;
+     accent, and pairing it with white would drop below AA.
+     #60a5fa/#001022 at 7.5:1 rather than the 5.15:1 of the pair it replaced --
+     headroom matters because the sticky mobile bar composites the button over
+     a blurred backdrop, which measured 4.45:1 and failed. */
+  --brand: #60a5fa;
+  --brand-hover: #7cb8fc;
+  --brand-fg: #001022;
   --brand-subtle: #17233c;
   --brand-text: #93c5fd;
 

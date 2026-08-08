@@ -17,7 +17,13 @@ import {
 } from '../utils/analytics';
 import { computeTotals } from '../utils/totals';
 import { formatCurrency } from '../utils/currency';
-import { InvoiceData, createEmptyInvoice, normaliseInvoice, todayIso } from '../types/invoice';
+import {
+  InvoiceData,
+  createEmptyInvoice,
+  getReadiness,
+  normaliseInvoice,
+  todayIso,
+} from '../types/invoice';
 
 const SITE_URL = 'https://invoice.dewiride.com';
 const AUTOSAVE_DELAY_MS = 2000;
@@ -217,6 +223,7 @@ export default function Home() {
   );
 
   const { total } = computeTotals(invoice);
+  const readiness = getReadiness(invoice);
 
   return (
     <LiveRegionProvider>
@@ -334,8 +341,29 @@ export default function Home() {
             <h2 id="invoice-editor" className="mb-1 text-lg font-semibold tracking-tight text-fg">
               Create your invoice
             </h2>
-            <p className="mb-5 text-sm text-fg-muted">
+            <p className="text-sm text-fg-muted">
               Everything stays in your browser. Nothing is uploaded.
+            </p>
+
+            {/*
+              Readiness, stated rather than implied. The data attribute gives an
+              automated agent a deterministic "am I done?" without re-deriving
+              the rule, and role=status means a screen-reader user hears it
+              change instead of having to hunt for the empty field.
+            */}
+            <p
+              role="status"
+              data-testid="invoice-readiness"
+              data-invoice-complete={readiness.complete}
+              className={`mb-5 mt-3 rounded-lg border px-3 py-2 text-sm ${
+                readiness.complete
+                  ? 'border-border bg-brand-subtle text-brand-text'
+                  : 'border-border bg-surface-sunken text-fg-muted'
+              }`}
+            >
+              {readiness.complete
+                ? 'Ready to download.'
+                : `Still needed: ${readiness.missing.join(', ')}.`}
             </p>
             <InvoiceForm data={invoice} onChange={handleInvoiceChange} />
           </section>
@@ -417,7 +445,7 @@ export default function Home() {
         it meant scrolling past the whole invoice. Here it is always one tap
         away, with the running total for context.
       */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden">
         <div className="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
             <p className="text-[0.6875rem] font-medium uppercase tracking-wide text-fg-muted">

@@ -8,7 +8,7 @@ import ThemeToggle from './ThemeToggle';
  * their own logo markup (including three copies of an onError PNG fallback).
  */
 const SiteHeader: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
-  <header className="sticky top-0 z-30 border-b border-border bg-canvas/85 backdrop-blur-md">
+  <header className="sticky top-0 z-30 border-b border-border bg-canvas">
     <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
       <Link
         href="/"

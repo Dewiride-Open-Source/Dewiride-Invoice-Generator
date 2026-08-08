@@ -1,6 +1,21 @@
 /**
- * Google Analytics utility functions for tracking events
+ * Google Analytics event helpers.
+ *
+ * The gtag queue is installed inline in _document (GA_INIT_SCRIPT below) and
+ * the gtag.js library is loaded lazily, on browser idle. That split matters:
+ * gtag() pushes onto window.dataLayer, and the library drains whatever is
+ * queued once it arrives, so deferring the 166 KB download costs no events.
  */
+
+export const GA_MEASUREMENT_ID = 'G-N6400HZG5L';
+
+/**
+ * Installs window.dataLayer and the gtag shim before anything renders. ~150
+ * bytes inline, versus putting the whole library on the critical path -- which
+ * measured as the single largest drag on this page (LCP 5.8s -> 2.9s and
+ * Lighthouse performance 78 -> 95 with GA blocked entirely).
+ */
+export const GA_INIT_SCRIPT = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${'G-N6400HZG5L'}');`;
 
 // Declare gtag function for TypeScript
 declare global {
