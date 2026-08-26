@@ -15,6 +15,7 @@ import {
   trackInvoiceGenerated,
   trackSavedDataManagerOpened,
 } from '../utils/analytics';
+import { SITE_URL, jsonLd } from '../utils/schema';
 import { computeTotals } from '../utils/totals';
 import { formatCurrency } from '../utils/currency';
 import {
@@ -25,7 +26,6 @@ import {
   todayIso,
 } from '../types/invoice';
 
-const SITE_URL = 'https://invoice.dewiride.com';
 const AUTOSAVE_DELAY_MS = 2000;
 
 const FEATURES = [
@@ -244,10 +244,13 @@ export default function Home() {
           content="Generate professional invoices instantly. Free, no registration, multiple currencies, instant PDF download."
         />
         <meta property="og:url" content={`${SITE_URL}/`} />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_SCHEMA) }}
-        />
+        {/*
+          Only the FAQ node lives here. It is derived from FAQS, which renders
+          the visible list and therefore ships to the client regardless.
+          WebApplication and HowTo are emitted from _document (see
+          ROUTE_SCHEMA) so their JSON stays out of the bundle entirely.
+        */}
+        <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(FAQ_SCHEMA)} />
       </Head>
 
       <a
@@ -466,6 +469,11 @@ export default function Home() {
             worldwide.
           </p>
           <nav aria-label="Footer" className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {/* An unlinked page is a page crawlers reach late and rank poorly.
+                Everything the sitemap advertises is reachable from here. */}
+            <Link href="/about" className="inline-flex min-h-6 items-center py-1 text-brand-text underline underline-offset-4">
+              About
+            </Link>
             <Link href="/privacy" className="inline-flex min-h-6 items-center py-1 text-brand-text underline underline-offset-4">
               Privacy Policy
             </Link>

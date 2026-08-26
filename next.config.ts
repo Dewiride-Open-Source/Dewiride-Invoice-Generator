@@ -1,7 +1,28 @@
 import type { NextConfig } from 'next';
 
+/**
+ * Inlined at build time and read by src/utils/schema.ts for `dateModified`.
+ *
+ * It has to come from here rather than from a `new Date()` inside the schema
+ * module: that module is imported by both _document (evaluated during the
+ * build) and index (evaluated again in the browser), so a live clock would
+ * produce two different values and mismatch on hydration. SOURCE_DATE_EPOCH,
+ * if set, keeps the export reproducible.
+ */
+const BUILD_DATE = (
+  process.env.SOURCE_DATE_EPOCH
+    ? new Date(Number(process.env.SOURCE_DATE_EPOCH) * 1000)
+    : new Date()
+)
+  .toISOString()
+  .slice(0, 10);
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+
+  env: {
+    NEXT_PUBLIC_BUILD_DATE: BUILD_DATE,
+  },
 
   // --- Static export for Azure Static Web Apps ---
   // `next build` writes build internals to .next (the default distDir) and the

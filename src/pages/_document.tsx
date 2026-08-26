@@ -1,116 +1,36 @@
-import { Html, Head, Main, NextScript } from 'next/document';
+import { Html, Head, Main, NextScript, type DocumentProps } from 'next/document';
 import { GA_INIT_SCRIPT } from '../utils/analytics';
+import { OG_IMAGE, ROUTE_SCHEMA, WEB_SITE, X_HANDLE, jsonLd } from '../utils/schema';
 import { THEME_INIT_SCRIPT } from '../utils/theme';
 
-const SITE_URL = 'https://invoice.dewiride.com';
 const DEWIRIDE_ANALYTICS_SITE_ID = '01a03f20-4189-7402-8f04-98a0e1eebb99';
-const OG_IMAGE = `${SITE_URL}/og-image.png`;
-const LOGO = `${SITE_URL}/logo.png`;
-
-const ORGANISATION = {
-  '@type': 'Organization',
-  name: 'Dewiride Technologies Private Limited',
-  url: 'https://dewiride.com',
-  logo: { '@type': 'ImageObject', url: LOGO },
-};
 
 /**
- * Structured data.
+ * Search-engine ownership verification.
  *
- * Note what is deliberately absent: this used to declare an aggregateRating of
- * 4.8 from 1250 ratings plus a review by "Small Business Owner", duplicated
- * across two blocks. None of that was real. Self-serving review markup
- * violates Google's structured-data policy and risks a manual action, so it is
- * gone. What remains describes the product truthfully.
+ * Supplied at build time so the codes are not committed. Set
+ * NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION / NEXT_PUBLIC_BING_SITE_VERIFICATION in
+ * the CI environment. Absent, neither tag renders -- an empty content
+ * attribute verifies nothing and still ships bytes.
  */
-const WEB_APPLICATION = {
-  '@context': 'https://schema.org',
-  '@type': 'WebApplication',
-  name: 'Dewiride Invoice Generator',
-  alternateName: 'Free Invoice Maker by Dewiride Technologies',
-  description:
-    'Free professional invoice generator by Dewiride Technologies for creating and downloading PDF invoices online. Built for freelancers, small businesses and entrepreneurs.',
-  url: SITE_URL,
-  sameAs: [
-    'https://dewiride.com',
-    'https://twitter.com/dewiride',
-    'https://linkedin.com/company/dewiride-technologies',
-  ],
-  applicationCategory: 'BusinessApplication',
-  applicationSubCategory: 'Invoice Generator',
-  operatingSystem: 'Web Browser',
-  browserRequirements: 'Requires JavaScript. Requires HTML5.',
-  softwareVersion: '2.0',
-  datePublished: '2025-06-28',
-  dateModified: '2026-08-09',
-  author: ORGANISATION,
-  publisher: ORGANISATION,
-  offers: {
-    '@type': 'Offer',
-    price: '0',
-    priceCurrency: 'USD',
-    availability: 'https://schema.org/InStock',
-  },
-  featureList: [
-    'Professional PDF invoice generation',
-    'Multiple currency support',
-    'Real-time invoice preview',
-    'No registration required',
-    'Free to use',
-    'Session data persistence',
-    'Mobile responsive design',
-    'Light and dark themes',
-    'Tax calculation support',
-    'Instant PDF download',
-  ],
-  screenshot: OG_IMAGE,
-  isAccessibleForFree: true,
-};
+const GOOGLE_SITE_VERIFICATION = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION;
+const BING_SITE_VERIFICATION = process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION;
 
-const HOW_TO = {
-  '@context': 'https://schema.org',
-  '@type': 'HowTo',
-  name: 'How to Create an Invoice Online with Dewiride Technologies',
-  description:
-    "Step-by-step guide to creating professional invoices using Dewiride's free online invoice generator",
-  image: OG_IMAGE,
-  totalTime: 'PT5M',
-  estimatedCost: { '@type': 'MonetaryAmount', currency: 'USD', value: '0' },
-  supply: [
-    { '@type': 'HowToSupply', name: 'Business Information' },
-    { '@type': 'HowToSupply', name: 'Client Information' },
-    { '@type': 'HowToSupply', name: 'Invoice Items' },
-  ],
-  step: [
-    {
-      '@type': 'HowToStep',
-      name: 'Enter Business Details',
-      text: "Fill in your business name and address in the 'From' section",
-    },
-    {
-      '@type': 'HowToStep',
-      name: 'Add Client Information',
-      text: "Enter your client's name and address in the 'To' section",
-    },
-    {
-      '@type': 'HowToStep',
-      name: 'Add Invoice Details',
-      text: 'Set invoice number, date, and due date',
-    },
-    {
-      '@type': 'HowToStep',
-      name: 'Add Items',
-      text: 'Add items with descriptions, quantities, and prices',
-    },
-    {
-      '@type': 'HowToStep',
-      name: 'Download PDF',
-      text: "Click 'Download PDF' to get your professional invoice",
-    },
-  ],
-};
+/**
+ * Only site-wide identity is emitted here, because _document renders into
+ * every page.
+ *
+ * WebApplication and HowTo used to sit here too, which meant /privacy/ and
+ * /terms/ each carried a node claiming to be the tool at the site root, plus
+ * invoice-creation steps those pages do not contain. Both now live on the home
+ * page -- see src/utils/schema.ts.
+ */
 
-export default function Document() {
+export default function Document({ __NEXT_DATA__ }: DocumentProps) {
+  // Route-specific structured data, so /privacy/ never claims to be the tool.
+  const routeSchema = ROUTE_SCHEMA[__NEXT_DATA__.page] ?? [];
+
+
   return (
     <Html lang="en" data-scroll-behavior="smooth">
       <Head>
@@ -149,6 +69,11 @@ export default function Document() {
           content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1"
         />
 
+        {GOOGLE_SITE_VERIFICATION && (
+          <meta name="google-site-verification" content={GOOGLE_SITE_VERIFICATION} />
+        )}
+        {BING_SITE_VERIFICATION && <meta name="msvalidate.01" content={BING_SITE_VERIFICATION} />}
+
         {/* Open Graph. Per-page titles/descriptions are set in each page's Head. */}
         <meta property="og:type" content="website" />
         <meta property="og:image" content={OG_IMAGE} />
@@ -163,8 +88,8 @@ export default function Document() {
         <meta property="og:locale" content="en_US" />
 
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:site" content="@dewiride" />
-        <meta name="twitter:creator" content="@dewiride" />
+        <meta name="twitter:site" content={X_HANDLE} />
+        <meta name="twitter:creator" content={X_HANDLE} />
         <meta name="twitter:image" content={OG_IMAGE} />
         <meta
           name="twitter:image:alt"
@@ -196,18 +121,21 @@ export default function Document() {
         */}
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
 
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(WEB_APPLICATION) }}
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(HOW_TO) }}
-        />
+        <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(WEB_SITE)} />
+        {routeSchema.map((node, i) => (
+          <script
+            key={i}
+            type="application/ld+json"
+            dangerouslySetInnerHTML={jsonLd(node)}
+          />
+        ))}
       </Head>
       <body>
         {/* Pageview fallback for visitors without JavaScript. */}
         <noscript>
+          {/* A tracking pixel, not content: next/image would rewrite it
+              through the optimiser and defeat the point. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={`https://analytics.dewiride.com/collect/pixel.gif?site=${DEWIRIDE_ANALYTICS_SITE_ID}`}
             referrerPolicy="no-referrer-when-downgrade"

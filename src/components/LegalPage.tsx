@@ -3,25 +3,18 @@ import Head from 'next/head';
 import Link from 'next/link';
 import SiteHeader from './SiteHeader';
 import { buttonClass } from './fields';
+import { SITE_URL, breadcrumbs, jsonLd } from '../utils/schema';
 
 interface LegalPageProps {
   title: string;
   metaTitle: string;
   description: string;
-  path: '/privacy/' | '/terms/';
-  lastUpdated: string;
+  path: `/${string}/`;
+  /** Omitted on pages where a revision date carries no meaning. */
+  lastUpdated?: string;
   children: React.ReactNode;
 }
 
-/**
- * The shared shell for the privacy and terms pages, which previously repeated
- * the same header, card and footer markup (including their own copy of the
- * logo with an onError fallback).
- *
- * The prose styles live here rather than on every element. The old pages
- * carried `prose max-w-none`, which did nothing at all -- @tailwindcss/
- * typography was never installed.
- */
 const LegalPage: React.FC<LegalPageProps> = ({
   title,
   metaTitle,
@@ -35,10 +28,11 @@ const LegalPage: React.FC<LegalPageProps> = ({
       <title>{metaTitle}</title>
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <meta name="description" content={description} />
-      <link rel="canonical" href={`https://invoice.dewiride.com${path}`} />
+      <link rel="canonical" href={`${SITE_URL}${path}`} />
       <meta property="og:title" content={metaTitle} />
       <meta property="og:description" content={description} />
-      <meta property="og:url" content={`https://invoice.dewiride.com${path}`} />
+      <meta property="og:url" content={`${SITE_URL}${path}`} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(breadcrumbs(title, path))} />
     </Head>
 
     <SiteHeader />
@@ -49,7 +43,7 @@ const LegalPage: React.FC<LegalPageProps> = ({
       </Link>
 
       <h1 className="mt-6 text-3xl font-bold tracking-tight text-fg sm:text-4xl">{title}</h1>
-      <p className="mt-2 text-sm text-fg-muted">Last updated: {lastUpdated}</p>
+      {lastUpdated && <p className="mt-2 text-sm text-fg-muted">Last updated: {lastUpdated}</p>}
 
       <div
         className="

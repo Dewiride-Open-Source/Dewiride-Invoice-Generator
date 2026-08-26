@@ -1,0 +1,44 @@
+# Dewiride Invoice Generator
+
+> A free invoice generator that runs entirely in the browser. Fill in a form,
+> watch the live preview, download a PDF. No account, no upload, no server:
+> invoices are built client-side and never leave the device.
+
+Operated by Dewiride Technologies Private Limited (Jodhpur, Rajasthan, India).
+The tool is free with no usage limit, no paid tier and no registration step.
+There is nothing to sign up for and no invoice count to exhaust.
+
+## What it does
+
+- Builds a professional PDF invoice from a form, with a live preview that
+  matches the PDF exactly.
+- Supports 150+ currencies, formatted with the correct symbol, decimal places
+  and digit grouping for each (JPY has no minor unit, KWD has three, en-IN
+  groups as 1,23,456).
+- Remembers businesses, clients and item descriptions in the browser for
+  autocomplete, and lets the user inspect or delete all of it.
+- Keeps the current draft across a page refresh.
+- Works on mobile, in light and dark themes, and meets WCAG AA contrast.
+
+## Privacy
+
+No invoice content reaches a server. There is no backend that could receive
+it. PDF generation happens in the browser. Anonymous, aggregate analytics
+(page views, currency chosen, item count) are collected; invoice text,
+names, addresses and amounts are not.
+
+## Pages
+
+- [Invoice generator](https://invoice.dewiride.com/): the tool itself.
+- [About](https://invoice.dewiride.com/about/): who operates it, and contact details.
+- [Privacy policy](https://invoice.dewiride.com/privacy/): what is and is not collected.
+- [Terms of service](https://invoice.dewiride.com/terms/): terms of use.
+
+## For automated agents
+
+The page is built to be driven without CSS selectors. Every control has a
+unique accessible name, and the form's completion state is exposed both as
+visible text and as a `data-invoice-complete` attribute on an element with
+`role="status"`, so an agent can tell "ready" from "half-filled" without
+re-deriving the rule. Filling the labelled fields and activating the
+"Download as PDF" button is the whole flow.

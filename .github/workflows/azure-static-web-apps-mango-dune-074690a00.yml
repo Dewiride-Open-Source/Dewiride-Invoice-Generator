@@ -48,6 +48,12 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          # Add these two under Settings -> Secrets and variables -> Actions.
+          # Unset, the verification meta tags simply do not render, so the
+          # build works fine before the Search Console properties exist.
+          NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: ${{ secrets.GOOGLE_SITE_VERIFICATION }}
+          NEXT_PUBLIC_BING_SITE_VERIFICATION: ${{ secrets.BING_SITE_VERIFICATION }}
 
       - name: Verify the export
         run: |
@@ -66,6 +72,18 @@ jobs:
             echo "::error::PDF engine is referenced from index.html -- the lazy import regressed"
             exit 1
           fi
+
+          # Structured data is inert metadata: _document emits it server-side,
+          # so it must never reach a client chunk. If it does, someone moved a
+          # schema node into a page's next/head and every landing page added
+          # later will ship its own copy in the bundle.
+          if grep -rq "applicationSubCategory" out/_next/static/chunks/; then
+            echo "::error::WebApplication JSON-LD is in the client bundle -- emit it from _document"
+            exit 1
+          fi
+
+      - name: Verify the sitemap covers the export
+        run: npm run check:sitemap
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
