@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { InvoiceData } from '../types/invoice';
 import { trackPDFDownload } from '../utils/analytics';
+import { saveInvoice } from '../utils/invoiceHistory';
 import { computeTotals } from '../utils/totals';
 
 interface DownloadPDFButtonProps {
@@ -53,6 +54,17 @@ const DownloadPDFButton: React.FC<DownloadPDFButtonProps> = ({ data, className =
 
       setStatus('idle');
       trackPDFDownload(data.currency, computeTotals(data).total);
+
+      // Downloading is the moment an invoice stops being a draft, so this is
+      // where it earns a place in the history. Saving on every keystroke would
+      // fill the list with abandoned scratch invoices instead.
+      //
+      // Deliberately not awaited: the download has already happened, and a
+      // storage failure must not surface as a PDF failure. The store reports
+      // its own unavailability through the history dialog.
+      void saveInvoice(data).catch((error) => {
+        console.warn('Invoice downloaded but could not be saved to history.', error);
+      });
     } catch (error) {
       // Retry from scratch next time; a rejected import() stays rejected.
       enginePromise.current = null;

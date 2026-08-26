@@ -55,6 +55,57 @@ test('the saved-data dialog has no violations', async ({ page }) => {
   expectNoViolations(await analyse(page));
 });
 
+test('the saved-invoices dialog has no violations, empty and populated', async ({ page }) => {
+  // Empty state first: it renders entirely different markup from the list.
+  await page.getByTestId('open-history').click();
+  await expect(page.locator('dialog[open]')).toBeVisible();
+  expectNoViolations(await analyse(page));
+  await page.getByRole('button', { name: /^done$/i }).click();
+
+  // Then with a row in it, which is where the per-invoice controls live.
+  await page.getByLabel('Your business name').fill('Acme Consulting Pvt Ltd');
+  await page.getByLabel('Your address').fill('12 MG Road, Bengaluru 560001');
+  await page.getByLabel('Client name').fill('Globex Corporation');
+  await page.getByLabel('Client address').fill('900 Market Street, San Francisco');
+  await page.getByLabel('Invoice number').fill('INV-2026-042');
+  await page.getByLabel('Description', { exact: true }).fill('Platform engineering retainer');
+  await page.getByLabel('Quantity').fill('2');
+  await page.getByLabel('Unit price').fill('50000');
+  await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: /download as pdf/i }).first().click(),
+  ]);
+
+  await page.getByTestId('open-history').click();
+  await expect(page.getByTestId('history-list')).toBeVisible();
+  expectNoViolations(await analyse(page));
+});
+
+test('the delete-everything confirmation has no violations', async ({ page }) => {
+  // Two <dialog> elements open at once: the list, and the confirm on top of
+  // it. Stacking them is exactly where focus and naming tend to break.
+  await page.getByLabel('Your business name').fill('Acme Consulting Pvt Ltd');
+  await page.getByLabel('Your address').fill('12 MG Road, Bengaluru 560001');
+  await page.getByLabel('Client name').fill('Globex Corporation');
+  await page.getByLabel('Invoice number').fill('INV-2026-042');
+  await page.getByLabel('Description', { exact: true }).fill('Retainer');
+  await page.getByLabel('Unit price').fill('50000');
+  await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: /download as pdf/i }).first().click(),
+  ]);
+
+  await page.getByTestId('open-history').click();
+  await page.getByRole('button', { name: /^clear all$/i }).click();
+  await expect(page.getByRole('dialog', { name: /delete every saved invoice/i })).toBeVisible();
+  expectNoViolations(await analyse(page));
+});
+
+test('the about page has no violations', async ({ page }) => {
+  await page.goto('/about/');
+  expectNoViolations(await analyse(page));
+});
+
 test('the combobox has no violations when open', async ({ page }) => {
   // The combobox only renders once something is saved.
   await page.locator('input[name="from-name"]').fill('Acme Consulting');

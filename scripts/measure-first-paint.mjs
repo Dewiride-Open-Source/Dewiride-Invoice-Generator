@@ -8,14 +8,28 @@
  * lazily-imported chunks (notably the ~1.5 MB PDF engine) sit on disk but must
  * never appear here.
  *
- * Usage: node scripts/measure-first-paint.mjs [outDir] [pageHtml]
+ * Usage:
+ *   node scripts/measure-first-paint.mjs [outDir] [pageHtml]
+ *   node scripts/measure-first-paint.mjs --budget=145   # fail above 145 KB gzip
  */
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
-const outDir = resolve(process.argv[2] ?? 'out');
-const pageHtml = join(outDir, process.argv[3] ?? 'index.html');
+const positional = process.argv.slice(2).filter((arg) => !arg.startsWith('--'));
+const outDir = resolve(positional[0] ?? 'out');
+const pageHtml = join(outDir, positional[1] ?? 'index.html');
+
+/**
+ * A ceiling, in KB gzip, for the JavaScript a first paint downloads.
+ *
+ * Bundle growth is never one bad commit; it is fifty reasonable ones. Without
+ * a number in CI the only signal is someone happening to read this table, and
+ * the whole point of the lazy PDF import is undone by a slow drift nobody
+ * measured.
+ */
+const budgetArg = process.argv.find((arg) => arg.startsWith('--budget='));
+const budgetKb = budgetArg ? Number(budgetArg.split('=')[1]) : null;
 
 if (!existsSync(pageHtml)) {
   console.error(`No export found at ${pageHtml}. Run \`npm run build\` first.`);
@@ -92,5 +106,21 @@ try {
   }
 } catch {
   /* directory layout differs; the totals above are the signal that matters */
+}
+
+if (budgetKb !== null) {
+  const totalKb = sum(modern, 'gzip') / 1024;
+  if (!Number.isFinite(budgetKb)) {
+    console.error(`::error::--budget needs a number, got "${budgetArg}"`);
+    process.exit(1);
+  }
+  if (totalKb > budgetKb) {
+    console.error(
+      `::error::first-paint JS is ${totalKb.toFixed(1)} KB gzip, over the ${budgetKb} KB budget. ` +
+        'Either make the addition lazy, or raise the budget deliberately in the workflow.',
+    );
+    process.exit(1);
+  }
+  console.log(`  Within budget: ${totalKb.toFixed(1)} KB / ${budgetKb} KB gzip\n`);
 }
 console.log('');

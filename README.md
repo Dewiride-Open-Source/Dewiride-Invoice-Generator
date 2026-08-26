@@ -37,6 +37,7 @@ Node 20.9+ is required (Next 16). CI pins Node 22.
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run size` | First-paint JS, parsed from the exported HTML |
 | `npm run check:contrast` | Every colour pair against WCAG AA, both themes |
+| `npm run check:sitemap` | Asserts the sitemap matches the exported routes |
 | `npm run build:fonts` | Rebuild the PDF font subsets |
 | `npm run build:icons` | Rebuild favicons and PWA icons from `logo.svg` |
 | `npm run build:og` | Rebuild the social preview image |
@@ -57,6 +58,37 @@ exposed through `useSyncExternalStore` (`src/hooks/useSavedData.ts`). Its server
 snapshot is empty, which is what the static export prerenders, so there is no
 hydration workaround. A write anywhere re-renders every reader — including
 across browser tabs.
+
+**Saved invoices live in IndexedDB, and follow the same store shape.**
+`src/utils/invoiceHistory.ts` mirrors `savedData.ts` — module-level store, empty
+server snapshot, stable snapshot identity — but the backing store is
+asynchronous, so reads are served from an in-memory array loaded once on first
+`subscribe`. Before that resolves the snapshot is empty, which is exactly what
+the export prerenders, so hydration still matches. Cross-tab sync needs an
+explicit `BroadcastChannel`, because IndexedDB has no `storage` event.
+Downloading a PDF saves the invoice; nothing else does.
+
+**Structured data is emitted from `_document`, not from a page's `<Head>`.**
+`src/utils/schema.ts` holds every JSON-LD node, and `ROUTE_SCHEMA` maps a Next
+route to the nodes that are true for it. Two reasons: `next/head` re-renders on
+the client, so routing JSON through a page ships it in the bundle (+1.3 KB gzip
+for `WebApplication` and `HowTo` alone, and a landing page would each carry
+their own copy); and a node emitted globally means every URL claims to be the
+same primary entity, which is how markup gets discarded. CI greps the chunks for
+`applicationSubCategory` to keep it that way. Add a page's schema to
+`ROUTE_SCHEMA`, not to its `<Head>`.
+
+**The sitemap is generated, not written.** `scripts/build-sitemap.mjs` runs after
+`next build` and derives every URL from `out/` itself, so a new page cannot be
+forgotten. `lastmod` is the last commit date, not the build clock, so rebuilding
+an unchanged commit does not claim every page changed. `npm run check:sitemap`
+asserts it matches the export.
+
+**First-paint JS has a hard ceiling.** `node scripts/measure-first-paint.mjs
+--budget=145` fails CI above 145 KB gzip (141.2 KB today). Bundle growth is
+never one bad commit, it is fifty reasonable ones. Anything large should be
+lazily imported the way the PDF engine is; raising the number should be a
+deliberate line in a diff.
 
 **Colour lives in tokens.** `src/styles/globals.css` declares the palette as
 custom properties; `npm run check:contrast` parses that file and asserts every
@@ -94,9 +126,12 @@ src/
 │   ├── InvoicePreview   Live preview ("paper", stays light in dark mode)
 │   ├── InvoicePDF       @react-pdf document — a separate rendering engine
 │   └── InvoicePdfRenderer  The lazy boundary. Never import this statically.
-├── hooks/useSavedData   useSyncExternalStore bindings
-├── types/invoice.ts     InvoiceData, and getReadiness()
-└── utils/               savedData, currency, totals, theme, analytics
+│   ├── SavedDataManager    Businesses/clients/items kept for autocomplete
+│   └── InvoiceHistoryManager  Saved invoices: open, copy, export, import
+├── hooks/               useSyncExternalStore bindings (saved data, history)
+├── types/invoice.ts     InvoiceData, normaliseInvoice(), getReadiness()
+└── utils/               savedData, invoiceHistory, schema, currency, totals,
+                         theme, analytics
 ```
 
 `InvoicePDF.tsx` does not read the DOM and is unaffected by any CSS change. If

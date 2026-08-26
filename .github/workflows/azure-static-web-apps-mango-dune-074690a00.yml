@@ -103,7 +103,11 @@ jobs:
           retention-days: 7
 
       - name: Report bundle size
-        run: npm run size
+        # A ceiling, not a report. 141.2 KB gzip today; the headroom is for
+        # small additions, and anything that needs more should be lazily
+        # imported the way the PDF engine is. Raising this number is a
+        # deliberate decision made in a diff, which is the point.
+        run: node scripts/measure-first-paint.mjs --budget=145
 
       - name: Deploy
         id: builddeploy

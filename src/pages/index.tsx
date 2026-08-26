@@ -5,10 +5,13 @@ import InvoiceForm from '../components/InvoiceForm';
 import InvoicePreview from '../components/InvoicePreview';
 import DownloadPDFButton from '../components/DownloadPDFButton';
 import SavedDataManager from '../components/SavedDataManager';
+import InvoiceHistoryManager from '../components/InvoiceHistoryManager';
 import SiteHeader from '../components/SiteHeader';
 import { LiveRegionProvider } from '../components/a11y/LiveRegion';
 import { buttonClass } from '../components/fields';
 import { BoltIcon, CurrencyIcon, DatabaseIcon, DocumentIcon, FreeIcon } from '../components/icons';
+import { useInvoiceHistory } from '../hooks/useInvoiceHistory';
+import { saveInvoice, suggestNextInvoiceNumber } from '../utils/invoiceHistory';
 import { saveFromCompany, saveItemDescription, saveToCompany } from '../utils/savedData';
 import {
   trackFormProgress,
@@ -104,7 +107,10 @@ const FAQ_SCHEMA = {
 export default function Home() {
   const [invoice, setInvoice] = useState<InvoiceData>(createEmptyInvoice);
   const [showSavedDataManager, setShowSavedDataManager] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [mobileView, setMobileView] = useState<'edit' | 'preview'>('edit');
+
+  const history = useInvoiceHistory();
 
   const saveTimeouts = useRef<{
     fromCompany?: ReturnType<typeof setTimeout>;
@@ -134,6 +140,29 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setInvoice(base.invoiceDate ? base : { ...base, invoiceDate: todayIso() });
   }, []);
+
+  /**
+   * Continues the user's own numbering sequence on a fresh invoice.
+   *
+   * Runs separately from the restore above because it depends on IndexedDB,
+   * which resolves later. It only ever fills a blank field -- a number the
+   * user typed, or one restored from a draft, is never overwritten.
+   */
+  useEffect(() => {
+    const suggestion = suggestNextInvoiceNumber();
+    if (!suggestion) return;
+    // Same exception as the restore above: the source is asynchronous storage,
+    // so the value cannot exist at first render. The functional update is what
+    // makes it safe -- a number typed while IndexedDB was still loading wins,
+    // because the guard is evaluated against the state at apply time rather
+    // than against the stale value this effect closed over.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setInvoice((current) =>
+      current.invoiceNumber.trim() ? current : { ...current, invoiceNumber: suggestion },
+    );
+    // Keyed on the store snapshot, not on the field: re-running on every
+    // keystroke in the number input would be pure churn.
+  }, [history]);
 
   useEffect(() => {
     sessionStorage.setItem('invoice-data', JSON.stringify(invoice));
@@ -222,6 +251,24 @@ export default function Home() {
     [autoSave, invoice],
   );
 
+  /**
+   * Replaces the editor contents with a saved invoice.
+   *
+   * A complete invoice on screen is saved before being replaced, so opening
+   * something from the history can never silently discard finished work. An
+   * incomplete one is not, because hoarding half-typed scratch drafts is what
+   * makes a history list useless.
+   */
+  const handleLoadFromHistory = useCallback(
+    (next: InvoiceData) => {
+      setInvoice((current) => {
+        if (getReadiness(current).complete) void saveInvoice(current);
+        return next;
+      });
+    },
+    [],
+  );
+
   const { total } = computeTotals(invoice);
   const readiness = getReadiness(invoice);
 
@@ -261,6 +308,20 @@ export default function Home() {
       </a>
 
       <SiteHeader>
+        <button
+          type="button"
+          onClick={() => setShowHistory(true)}
+          className={`${buttonClass.secondary} px-3 py-2`}
+          data-testid="open-history"
+        >
+          <DocumentIcon className="size-4" />
+          <span className="hidden sm:inline">
+            Saved invoices{history.length ? ` (${history.length})` : ''}
+          </span>
+          <span className="sr-only sm:hidden">
+            Saved invoices{history.length ? ` (${history.length})` : ''}
+          </span>
+        </button>
         <button
           type="button"
           onClick={() => {
@@ -495,6 +556,12 @@ export default function Home() {
       <SavedDataManager
         isOpen={showSavedDataManager}
         onClose={() => setShowSavedDataManager(false)}
+      />
+
+      <InvoiceHistoryManager
+        isOpen={showHistory}
+        onClose={() => setShowHistory(false)}
+        onLoad={handleLoadFromHistory}
       />
     </LiveRegionProvider>
   );
