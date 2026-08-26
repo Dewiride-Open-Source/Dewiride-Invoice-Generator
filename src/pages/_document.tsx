@@ -3,6 +3,7 @@ import { GA_INIT_SCRIPT } from '../utils/analytics';
 import { THEME_INIT_SCRIPT } from '../utils/theme';
 
 const SITE_URL = 'https://invoice.dewiride.com';
+const DEWIRIDE_ANALYTICS_SITE_ID = '01a03f20-4189-7402-8f04-98a0e1eebb99';
 const OG_IMAGE = `${SITE_URL}/og-image.png`;
 const LOGO = `${SITE_URL}/logo.png`;
 
@@ -127,6 +128,17 @@ export default function Document() {
         */}
         <script dangerouslySetInnerHTML={{ __html: GA_INIT_SCRIPT }} />
 
+        {/*
+          Dewiride's own analytics. First-party, small, and deferred, so it
+          runs after parsing without competing with the critical path. This
+          sits alongside GA rather than replacing it.
+        */}
+        <script
+          defer
+          src="https://analytics.dewiride.com/dw.js"
+          data-site={DEWIRIDE_ANALYTICS_SITE_ID}
+        />
+
         <meta
           name="description"
           content="Free professional invoice generator by Dewiride Technologies. Create, customise and download PDF invoices instantly. No registration required. Multiple currencies supported."
@@ -194,6 +206,17 @@ export default function Document() {
         />
       </Head>
       <body>
+        {/* Pageview fallback for visitors without JavaScript. */}
+        <noscript>
+          <img
+            src={`https://analytics.dewiride.com/collect/pixel.gif?site=${DEWIRIDE_ANALYTICS_SITE_ID}`}
+            referrerPolicy="no-referrer-when-downgrade"
+            alt=""
+            width="1"
+            height="1"
+            style={{ position: 'absolute' }}
+          />
+        </noscript>
         <Main />
         <NextScript />
       </body>
