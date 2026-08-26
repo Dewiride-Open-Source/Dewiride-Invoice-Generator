@@ -6,9 +6,9 @@ export default function Privacy() {
     <LegalPage
       title="Privacy Policy"
       metaTitle="Privacy Policy — Dewiride Invoice Generator"
-      description="How Dewiride Technologies' free invoice generator handles your data. Invoices never leave your browser; only anonymous analytics are collected."
+      description="How Dewiride Technologies' free invoice generator handles your data. Invoices never leave your browser; only anonymous usage analytics are collected."
       path="/privacy/"
-      lastUpdated="9 August 2026"
+      lastUpdated="26 August 2026"
     >
 
               <h2 className="font-semibold text-fg">Our Commitment to Privacy</h2>
@@ -21,8 +21,10 @@ export default function Privacy() {
               
               <h3 className="font-semibold text-fg">Analytics Data</h3>
               <p className="text-fg-muted">
-                We use Google Analytics (Tracking ID: G-N6400HZG5L) to understand how our service is used and to improve user experience. 
-                We collect only anonymous, aggregated data including:
+                We use two analytics tools to understand how our service is used and to improve it: Google Analytics
+                (Tracking ID: G-N6400HZG5L) and Dewiride Analytics, our own first-party analytics running at
+                analytics.dewiride.com. Both are described in detail under Third-Party and First-Party Services below.
+                Between them we collect only anonymous, aggregated data including:
               </p>
               <ul className="text-fg-muted">
                 <li>General usage patterns (page views, session duration, form interactions)</li>
@@ -50,6 +52,12 @@ export default function Privacy() {
                 <li>Any personally identifiable information (PII)</li>
                 <li>Complete invoice data or content</li>
               </ul>
+              <p className="text-fg-muted">
+                Dewiride Analytics records which controls are clicked, using the on-screen label of the control. The
+                small number of controls whose labels contain something you typed &mdash; deleting a line item, or
+                deleting a saved company &mdash; are explicitly excluded from that recording, so your invoice content
+                and saved entries are never sent with them.
+              </p>
 
               <h2 className="font-semibold text-fg">How We Store Your Data</h2>
               
@@ -72,7 +80,7 @@ export default function Privacy() {
                 Our service is designed to be completely privacy-focused with client-side processing.
               </p>
 
-              <h2 className="font-semibold text-fg">Third-Party Services</h2>
+              <h2 className="font-semibold text-fg">Third-Party and First-Party Services</h2>
               
               <h3 className="font-semibold text-fg">Google Analytics</h3>
               <p className="text-fg-muted">
@@ -95,6 +103,28 @@ export default function Privacy() {
                 using browser privacy settings, or ad-blocking extensions.
               </p>
 
+              <h3 className="font-semibold text-fg">Dewiride Analytics</h3>
+              <p className="text-fg-muted">
+                We also run our own analytics, served from analytics.dewiride.com. It is first-party software operated
+                by Dewiride Technologies rather than an outside advertising company, and it exists so we can understand
+                usage without depending solely on a third party.
+              </p>
+              <p className="text-fg-muted">
+                <strong>Data Collected:</strong> the page address you are viewing, the referring page, your screen&rsquo;s
+                viewport size, your browser language and time-zone offset, how long the page was actively in view, how
+                far you scrolled, whether you used a mouse or a keyboard, and the label of buttons and links you click.
+                Page addresses on this service are static (/, /privacy/, /terms/) and never contain your invoice data.
+              </p>
+              <p className="text-fg-muted">
+                <strong>No cookies, no stored identifiers:</strong> Dewiride Analytics sets no cookies and writes nothing
+                to your browser&rsquo;s local or session storage. It does not create a persistent visitor ID, does not
+                follow you across other websites, and sends its data with browser credentials explicitly omitted.
+              </p>
+              <p className="text-fg-muted">
+                <strong>Without JavaScript:</strong> if you browse with JavaScript disabled, a single 1&times;1 image is
+                requested from analytics.dewiride.com to count the page view. It records nothing beyond that request.
+              </p>
+
               <h3 className="font-semibold text-fg">PDF Generation</h3>
               <p className="text-fg-muted">
                 PDF generation happens entirely in your browser using client-side libraries. 
@@ -107,7 +137,7 @@ export default function Privacy() {
               <ul className="text-fg-muted">
                 <li>You can clear all locally stored data using our &quot;Manage Saved Data&quot; feature in the app</li>
                 <li>You can view, delete individual entries, or clear all saved companies and items</li>
-                <li>You can disable analytics by using browser settings, ad-blockers, or the Google Analytics opt-out add-on</li>
+                <li>You can disable analytics with browser privacy settings or a content blocker. Note that the Google Analytics opt-out add-on covers Google Analytics only &mdash; to block Dewiride Analytics as well, block requests to analytics.dewiride.com or browse with JavaScript disabled</li>
                 <li>No registration is required - you can use the service completely anonymously</li>
                 <li>You can stop using the service at any time without any data retention concerns</li>
                 <li>Session data automatically clears when you close your browser</li>
@@ -115,9 +145,9 @@ export default function Privacy() {
 
               <h3 className="font-semibold text-fg">Cookie Management</h3>
               <p className="text-fg-muted">
-                We use minimal cookies, primarily for Google Analytics functionality. You can control cookies through 
-                your browser settings, use private/incognito browsing mode, or disable them entirely. The service 
-                will still function without cookies, though analytics will be disabled.
+                We use minimal cookies, and only for Google Analytics functionality. Dewiride Analytics sets no cookies
+                at all. You can control cookies through your browser settings, use private/incognito browsing mode, or
+                disable them entirely. The service will still function without cookies.
               </p>
 
               <h2 className="font-semibold text-fg">Data Security</h2>
@@ -129,8 +159,9 @@ export default function Privacy() {
 
               <h2 className="font-semibold text-fg">International Users</h2>
               <p className="text-fg-muted">
-                Our service is available globally. If you&rsquo;re located outside of India, please note that 
-                Google Analytics may process data according to their international data transfer policies.
+                Our service is available globally. If you&rsquo;re located outside of India, please note that
+                Google Analytics may process data according to their international data transfer policies, and that
+                data sent to Dewiride Analytics is processed by Dewiride Technologies, a company registered in India.
               </p>
 
               <h2 className="font-semibold text-fg">Children&rsquo;s Privacy</h2>
