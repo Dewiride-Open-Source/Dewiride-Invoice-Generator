@@ -39,6 +39,27 @@ const expectNoViolations = (results: Awaited<ReturnType<typeof analyse>>) => {
   expect(summary, `\n${summary.join('\n')}\n`).toEqual([]);
 };
 
+/**
+ * Switches to the dark theme and waits for the page to settle there.
+ *
+ * click() resolves before the next paint, and axe reads computed colours --
+ * so analysing straight afterwards can measure a frame in which the surface
+ * has taken its dark value while the text on it has not. That reports a
+ * contrast ratio which exists on no frame a user ever sees, and it does it
+ * intermittently, which is worse than failing outright.
+ *
+ * Reduced motion (below) collapses the transition to 0.01ms but does not make
+ * the click await a repaint. Waiting for every running animation to finish
+ * does, and says why.
+ */
+const switchToDark = async (page: Page) => {
+  await page.getByRole('radio', { name: /dark theme/i }).click();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await page.waitForFunction(() =>
+    document.getAnimations().every((animation) => animation.playState !== 'running'),
+  );
+};
+
 test.beforeEach(async ({ page }) => {
   /**
    * Every control carries `transition-colors`, so for 150ms after the theme
@@ -68,7 +89,7 @@ test('the home page has no violations', async ({ page }) => {
 });
 
 test('the home page has no violations in dark mode', async ({ page }) => {
-  await page.getByRole('radio', { name: /dark theme/i }).click();
+  await switchToDark(page);
   await expect(page.locator('html')).toHaveClass(/dark/);
   expectNoViolations(await analyse(page));
 });
@@ -147,7 +168,7 @@ test('the payment block and its QR have no violations, in both themes', async ({
 
   expectNoViolations(await analyse(page));
 
-  await page.getByRole('radio', { name: /dark theme/i }).click();
+  await switchToDark(page);
   await expect(page.locator('html')).toHaveClass(/dark/);
   expectNoViolations(await analyse(page));
 });
@@ -203,7 +224,7 @@ test('the GST fields and the tax invoice have no violations, in both themes', as
 
   expectNoViolations(await analyse(page));
 
-  await page.getByRole('radio', { name: /dark theme/i }).click();
+  await switchToDark(page);
   await expect(page.locator('html')).toHaveClass(/dark/);
   expectNoViolations(await analyse(page));
 });
@@ -359,4 +380,67 @@ test('state changes are announced', async ({ page }) => {
 
   await page.getByTestId('item-2-remove').click();
   await expect(liveRegion).toContainText('Item 2 removed');
+});
+
+/**
+ * Every published page, in both themes.
+ *
+ * Static pages are the ones nobody looks at again after they ship, so a table
+ * with a missing header or a link whose text repeats a sibling's sits there for
+ * months. Cheap to check, and there are eleven of them now.
+ */
+const PUBLISHED_ROUTES = [
+  '/gst-invoice-format/',
+  '/gst-invoice-generator/',
+  '/proforma-invoice-format/',
+  '/quotation-format/',
+  '/delivery-challan-format/',
+  '/tools/gst-calculator/',
+  '/tools/upi-qr-generator/',
+  '/tools/amount-in-words/',
+  '/about/',
+];
+
+for (const route of PUBLISHED_ROUTES) {
+  test(`${route} has no violations, in both themes`, async ({ page }) => {
+    await page.goto(route);
+    expectNoViolations(await analyse(page));
+
+    await switchToDark(page);
+    expectNoViolations(await analyse(page));
+  });
+}
+
+test('the calculator and QR tools name their controls distinctly', async ({ page }) => {
+  await page.goto('/tools/gst-calculator/');
+
+  // Radios in a card layout are where an accessible name usually goes missing:
+  // the visible text lives in sibling spans, and a label that wraps the whole
+  // card names the control with the hint paragraph running on after it.
+  await expect(page.getByRole('radio', { name: 'No — add GST' })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'No — add GST' })).toHaveAccessibleDescription(
+    'The amount is the taxable value.',
+  );
+  await expect(page.getByRole('radio', { name: 'Within the same state' })).toBeVisible();
+
+  // A group needs a name too, or "radio, 1 of 2" is all a screen reader says.
+  await expect(page.getByRole('group', { name: 'Is GST already in that amount?' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Where is the supply going?' })).toBeVisible();
+
+  await page.goto('/tools/upi-qr-generator/');
+  await expect(page.getByRole('checkbox', { name: 'Ask for a specific amount' })).toBeVisible();
+  await page.getByTestId('upi-tool-id').fill('acme@okhdfcbank');
+  // The QR carries meaning a blind user has no other route to.
+  await expect(page.getByRole('img', { name: /UPI payment QR code/ })).toBeVisible();
+});
+
+test('the footer hub is one named landmark, not a loose pile of links', async ({ page }) => {
+  await page.goto('/');
+  const footer = page.getByRole('navigation', { name: 'Footer' });
+  await expect(footer).toBeVisible();
+  // The same eight links appear in the body of the page. Naming the container
+  // is what lets a screen-reader user -- and anything driving the page by role
+  // -- tell the two sets apart.
+  await expect(footer.getByRole('link', { name: 'GST invoice format' })).toHaveCount(1);
+  await expect(footer.getByRole('link', { name: 'UPI QR generator' })).toHaveCount(1);
 });

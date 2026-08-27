@@ -14,7 +14,20 @@ import { test, expect, Page } from '@playwright/test';
  */
 
 /** Routes the export is expected to publish, without the trailing slash rule applied. */
-const PUBLIC_ROUTES = ['/', '/about/', '/privacy/', '/terms/'];
+const PUBLIC_ROUTES = [
+  '/',
+  '/about/',
+  '/delivery-challan-format/',
+  '/gst-invoice-format/',
+  '/gst-invoice-generator/',
+  '/privacy/',
+  '/proforma-invoice-format/',
+  '/quotation-format/',
+  '/terms/',
+  '/tools/amount-in-words/',
+  '/tools/gst-calculator/',
+  '/tools/upi-qr-generator/',
+];
 
 const SITE = 'https://invoice.dewiride.com';
 
@@ -83,7 +96,7 @@ test.describe('discoverability', () => {
     // WebApplication used to be emitted from _document, so /privacy/ and
     // /terms/ each carried a node asserting they were the app at the site
     // root, alongside HowTo steps they do not contain.
-    for (const route of ['/about/', '/privacy/', '/terms/']) {
+    for (const route of PUBLIC_ROUTES.filter((r) => r !== '/')) {
       await page.goto(route);
       const types = await jsonLdTypes(page);
       expect(types, `${route} JSON-LD`).toContain('BreadcrumbList');

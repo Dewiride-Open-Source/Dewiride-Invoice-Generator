@@ -626,6 +626,33 @@ test('the totals are never split across a page break', async ({ page }) => {
   expect(pagesWithTableHeader(pdf)).toBe(1);
 });
 
+test('a three-line GST invoice fits on one page', async ({ page }) => {
+  /*
+    Not cosmetic, and it is the counterweight to the two guards above.
+
+    The totals block is one unbreakable unit by design, so it either fits below
+    the table or the whole thing moves. It was missing by about seven points --
+    which put a perfectly ordinary three-line invoice on two sheets, with page
+    one two-thirds empty and every figure on page two. The slack that bought
+    those points back is documented at `addresses` in InvoicePDF; this is what
+    stops a future addition quietly spending it again.
+  */
+  await seed(page, {
+    shipping: 2500,
+    items: Array.from({ length: 3 }, (_, index) => ({
+      id: `i${index}`,
+      description: `Platform engineering retainer, sprint ${index + 1}`,
+      quantity: 1,
+      price: 100000 + index,
+      discount: 10,
+      hsnSac: '998314',
+    })),
+  });
+
+  const pdf = await downloadPdf(page);
+  expect(pageStreams(pdf)).toHaveLength(1);
+});
+
 test('an invoice with none of the new fields is still a single page', async ({ page }) => {
   // The guard on everything above: an ordinary invoice must not have grown.
   await page.addInitScript((value) => {

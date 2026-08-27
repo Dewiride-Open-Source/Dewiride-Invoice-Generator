@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { InvoiceData } from '../types/invoice';
 import { trackPDFDownload } from '../utils/analytics';
+import { getDocumentType } from '../utils/documents';
 import { saveInvoice } from '../utils/invoiceHistory';
 import { computeTotals } from '../utils/totals';
 
@@ -46,7 +47,10 @@ const DownloadPDFButton: React.FC<DownloadPDFButtonProps> = ({ data, className =
       url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `invoice-${data.invoiceNumber || 'draft'}.pdf`;
+      // quotation-Q-2026-004.pdf, not invoice-Q-2026-004.pdf. The file name
+      // is what the recipient sees in their downloads folder and what they
+      // search for eighteen months later.
+      link.download = `${getDocumentType(data.docType).fileStem}-${data.invoiceNumber || 'draft'}.pdf`;
       // Firefox ignores click() on an element that isn't in the document.
       document.body.appendChild(link);
       link.click();

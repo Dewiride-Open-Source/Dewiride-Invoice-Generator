@@ -30,6 +30,12 @@
  * and moving saved invoices to a server would break it.
  */
 import { InvoiceData, normaliseInvoice } from '../types/invoice';
+import { DEFAULT_DOCUMENT_TYPE, DocumentTypeId } from './documents';
+// Re-exported rather than redefined: sixteen characters is Rule 46(b)'s
+// number, not this module's, and two copies of it would be free to disagree.
+import { INVOICE_NUMBER_MAX_LENGTH } from './gst';
+
+export { INVOICE_NUMBER_MAX_LENGTH };
 
 export interface SavedInvoice {
   id: string;
@@ -50,7 +56,7 @@ const STORE = 'history';
 const LIMIT = 500;
 
 /** Rule 46 caps a GST invoice serial at 16 characters. */
-export const MAX_INVOICE_NUMBER_LENGTH = 16;
+
 
 const EMPTY: readonly SavedInvoice[] = Object.freeze([]);
 
@@ -228,7 +234,7 @@ export const nextInvoiceNumber = (previous: string): string => {
   const match = trimmed.match(/(\d+)(\D*)$/);
   if (!match) {
     const suffixed = `${trimmed}-1`;
-    return suffixed.length <= MAX_INVOICE_NUMBER_LENGTH ? suffixed : trimmed;
+    return suffixed.length <= INVOICE_NUMBER_MAX_LENGTH ? suffixed : trimmed;
   }
 
   const [, digits, tail] = match;
@@ -236,12 +242,29 @@ export const nextInvoiceNumber = (previous: string): string => {
   // Keep the original width unless the number genuinely outgrew it (099 -> 100).
   const padded = incremented.padStart(digits.length, '0');
   const next = trimmed.slice(0, match.index) + padded + tail;
-  return next.length <= MAX_INVOICE_NUMBER_LENGTH ? next : trimmed;
+  return next.length <= INVOICE_NUMBER_MAX_LENGTH ? next : trimmed;
 };
 
-/** The number to start the next invoice with, based on the most recent save. */
-export const suggestNextInvoiceNumber = (): string =>
-  cache.length ? nextInvoiceNumber(cache[0].invoice.invoiceNumber) : '';
+/**
+ * The number to start the next document with, continuing that document type's
+ * own series.
+ *
+ * Per type, not one series for everything. Rule 46(b) requires the tax invoice
+ * series to be consecutive and unique for the financial year, so every number
+ * a quotation or a proforma consumes leaves a gap in it -- and a gap in an
+ * invoice series is what a scrutiny officer reads as a suppressed sale. Rule
+ * 46(b) explicitly permits "one or multiple series", which is the licence for
+ * keeping QTN- and INV- apart.
+ *
+ * The cache is newest-first, so this finds the most recent document of the
+ * type asked for.
+ */
+export const suggestNextInvoiceNumber = (
+  docType: DocumentTypeId = DEFAULT_DOCUMENT_TYPE,
+): string => {
+  const latest = cache.find((entry) => entry.invoice.docType === docType);
+  return latest ? nextInvoiceNumber(latest.invoice.invoiceNumber) : '';
+};
 
 // --- writes ---------------------------------------------------------------
 

@@ -8,12 +8,14 @@ import { useAnnounce } from './a11y/LiveRegion';
 import { saveFromCompany, saveItemDescription, saveToCompany } from '../utils/savedData';
 import { useFromCompanies, useItemDescriptions, useToCompanies } from '../hooks/useSavedData';
 import { trackCurrencyChange } from '../utils/analytics';
+import { getDocumentType } from '../utils/documents';
 import { CURRENCIES, POPULAR_CURRENCY_CODES, formatCurrency } from '../utils/currency';
 import { InvoiceData, InvoiceItem, PaymentDetails, createItem } from '../types/invoice';
 import { formatRate, lineTotal } from '../utils/totals';
 import {
   INDIAN_STATES,
   gstinStateCode,
+  invoiceNumberIssue,
   isGstCurrency,
   isValidGstin,
   taxTreatment,
@@ -136,6 +138,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
   );
 
   const onlyOneItem = data.items.length === 1;
+  // A quotation has a validity date, not a payment due date, and a challan
+  // has a challan number. Labelling all four the same way is how a form
+  // quietly teaches people that the document type is cosmetic.
+  const docType = getDocumentType(data.docType);
   const gstMode = isGstCurrency(data.currency);
   const treatment = taxTreatment(data);
 
@@ -160,10 +166,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
   };
 
   return (
-    <form className="@container space-y-5" noValidate aria-label="Invoice details">
+    <form className="@container space-y-5" noValidate aria-label={`${docType.noun} details`}>
       {/* --- Design --- */}
       <fieldset className={fieldsetClass}>
-        <legend className={legendClass}>Invoice design</legend>
+        <legend className={legendClass}>{docType.noun} design</legend>
         <TemplatePicker value={data.template} onChange={(template) => update('template', template)} />
       </fieldset>
 
@@ -287,19 +293,34 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
 
       {/* --- Invoice meta --- */}
       <fieldset className={fieldsetClass}>
-        <legend className={legendClass}>Invoice information</legend>
+        <legend className={legendClass}>{docType.noun} information</legend>
         <div className="mt-3 grid gap-4 @lg:grid-cols-3">
           <TextField
-            label="Invoice number"
+            label={docType.numberLabel}
             name="invoice-number"
             autoComplete="off"
             placeholder="INV-001"
             value={data.invoiceNumber}
             onChange={(e) => update('invoiceNumber', e.target.value)}
+            /*
+              Only once a GSTIN says this is a tax invoice. Rule 46(b) binds
+              that document and nothing else here -- a US invoice numbered
+              "ACME_2026.001" is perfectly fine, and flagging it would be
+              inventing a rule.
+
+              An error rather than a hint, because it is a breach rather than
+              a preference, but nothing is blocked or rewritten: the number is
+              the user's to choose.
+            */
+            error={
+              docType.id === 'invoice' && gstMode && data.supplierGstin.trim()
+                ? invoiceNumberIssue(data.invoiceNumber) || undefined
+                : undefined
+            }
             data-testid="invoice-number"
           />
           <TextField
-            label="Invoice date"
+            label={`${docType.noun} date`}
             name="invoice-date"
             type="date"
             value={data.invoiceDate}
@@ -307,7 +328,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
             data-testid="invoice-date"
           />
           <TextField
-            label="Due date"
+            label={docType.dueDateLabel}
             name="due-date"
             type="date"
             value={data.dueDate}
@@ -320,7 +341,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
       {/* --- Line items --- */}
       <fieldset className={fieldsetClass}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <legend className={legendClass}>Invoice items</legend>
+          <legend className={legendClass}>{docType.noun} items</legend>
           <button ref={addButtonRef} type="button" onClick={addItem} className={buttonClass.success}>
             <PlusIcon className="size-4" />
             Add item

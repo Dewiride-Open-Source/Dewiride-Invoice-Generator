@@ -123,8 +123,11 @@ const westernWords = (n: number): string => {
  * Beyond this the words stop being useful and floating point stops being able
  * to represent whole rupees exactly, so say so rather than printing something
  * confidently wrong.
+ *
+ * Exported so /tools/amount-in-words/ can explain the limit at the point
+ * someone hits it, rather than silently returning an empty string.
  */
-const MAX_AMOUNT = Number.MAX_SAFE_INTEGER / 100;
+export const MAX_AMOUNT = Number.MAX_SAFE_INTEGER / 100;
 
 export const amountInWords = (amount: number, currency: string): string => {
   if (!Number.isFinite(amount)) return '';

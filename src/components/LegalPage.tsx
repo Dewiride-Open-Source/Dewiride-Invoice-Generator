@@ -2,6 +2,8 @@ import React from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import SiteHeader from './SiteHeader';
+import SiteFooter from './SiteFooter';
+import { proseClass } from './Article';
 import { buttonClass } from './fields';
 import { SITE_URL, breadcrumbs, jsonLd } from '../utils/schema';
 
@@ -45,17 +47,7 @@ const LegalPage: React.FC<LegalPageProps> = ({
       <h1 className="mt-6 text-3xl font-bold tracking-tight text-fg sm:text-4xl">{title}</h1>
       {lastUpdated && <p className="mt-2 text-sm text-fg-muted">Last updated: {lastUpdated}</p>}
 
-      <div
-        className="
-          mt-10 space-y-4 text-sm leading-relaxed text-fg-muted
-          [&_a]:text-brand-text [&_a]:underline [&_a]:underline-offset-4
-          [&_h2]:mb-3 [&_h2]:mt-10 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:text-fg
-          [&_h3]:mb-2 [&_h3]:mt-6 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-fg
-          [&_li]:mt-1.5
-          [&_strong]:font-semibold [&_strong]:text-fg
-          [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6
-        "
-      >
+      <div className={`mt-10 ${proseClass}`}>
         {children}
       </div>
 
@@ -65,6 +57,10 @@ const LegalPage: React.FC<LegalPageProps> = ({
         </Link>
       </div>
     </main>
+
+    {/* These pages used to have no footer at all, so the only way out of
+        /privacy/ was the back button. */}
+    <SiteFooter />
   </>
 );
 

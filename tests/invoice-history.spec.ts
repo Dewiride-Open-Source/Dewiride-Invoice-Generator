@@ -1,6 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { MAX_INVOICE_NUMBER_LENGTH, nextInvoiceNumber } from '../src/utils/invoiceHistory';
+import { INVOICE_NUMBER_MAX_LENGTH, nextInvoiceNumber } from '../src/utils/invoiceHistory';
 
 /**
  * Saved invoices.
@@ -69,11 +69,11 @@ test.describe('invoice numbering', () => {
   test('never exceeds the 16-character GST limit, and never truncates', () => {
     // Rolling over adds a digit: 999999999999 -> 1000000000000 needs 17.
     const atLimit = 'INV-999999999999';
-    expect(atLimit).toHaveLength(MAX_INVOICE_NUMBER_LENGTH);
+    expect(atLimit).toHaveLength(INVOICE_NUMBER_MAX_LENGTH);
     // Returning the input unchanged is safe; truncating would silently produce
     // some other invoice's number.
     expect(nextInvoiceNumber(atLimit)).toBe(atLimit);
-    expect(nextInvoiceNumber(atLimit).length).toBeLessThanOrEqual(MAX_INVOICE_NUMBER_LENGTH);
+    expect(nextInvoiceNumber(atLimit).length).toBeLessThanOrEqual(INVOICE_NUMBER_MAX_LENGTH);
 
     // Widening within the limit is still allowed.
     expect(nextInvoiceNumber('INVOICE-20269999')).toBe('INVOICE-20270000');

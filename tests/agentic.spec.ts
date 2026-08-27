@@ -80,8 +80,38 @@ test('every interactive control has a unique, meaningful accessible name', async
       return el.textContent?.trim() ?? '';
     };
 
-    const groupOf = (el: Element): string =>
-      el.closest('[role="group"]')?.getAttribute('aria-label') ?? '';
+    /*
+      The context a name has to be unique *within*.
+
+      A name is only ambiguous against its siblings. "GST invoice format"
+      appears both in the body of the home page and in the footer, which is
+      ordinary web navigation and not a defect: a screen-reader user
+      disambiguates them as "the link in the Footer navigation", and a driver
+      does the same with
+      getByRole('navigation', {name: 'Footer'}).getByRole('link', ...).
+
+      Landmarks and labelled groups are that context. Two same-named controls
+      inside the *same* container are still ambiguous and still fail below --
+      which is the case this test was written for: two "Delete" buttons in one
+      list of line items.
+    */
+    const nameOfContainer = (container: Element): string => {
+      const aria = container.getAttribute('aria-label');
+      if (aria) return aria;
+      const labelledby = container.getAttribute('aria-labelledby');
+      if (!labelledby) return '';
+      return labelledby
+        .split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent?.trim() ?? '')
+        .join(' ');
+    };
+
+    const groupOf = (el: Element): string => {
+      const container = el.closest(
+        '[role="group"][aria-label], nav[aria-label], section[aria-label], section[aria-labelledby]',
+      );
+      return container ? nameOfContainer(container) : '';
+    };
 
     return [...document.querySelectorAll('button, input, select, textarea, a[href]')]
       .filter((el) => (el as HTMLElement).offsetParent !== null)

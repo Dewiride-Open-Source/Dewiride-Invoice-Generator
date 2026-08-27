@@ -1,35 +1,9 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React from 'react';
 import Head from 'next/head';
-import Link from 'next/link';
-import InvoiceForm from '../components/InvoiceForm';
-import InvoicePreview from '../components/InvoicePreview';
-import DownloadPDFButton from '../components/DownloadPDFButton';
-import SavedDataManager from '../components/SavedDataManager';
-import InvoiceHistoryManager from '../components/InvoiceHistoryManager';
-import SiteHeader from '../components/SiteHeader';
-import { LiveRegionProvider } from '../components/a11y/LiveRegion';
-import { buttonClass } from '../components/fields';
-import { BoltIcon, CurrencyIcon, DatabaseIcon, DocumentIcon, FreeIcon } from '../components/icons';
-import { useInvoiceHistory } from '../hooks/useInvoiceHistory';
-import { saveInvoice, suggestNextInvoiceNumber } from '../utils/invoiceHistory';
-import { saveFromCompany, saveItemDescription, saveToCompany } from '../utils/savedData';
-import {
-  trackFormProgress,
-  trackInvoiceGenerated,
-  trackSavedDataManagerOpened,
-} from '../utils/analytics';
+import InvoiceStudio from '../components/InvoiceStudio';
+import RelatedLinks from '../components/RelatedLinks';
+import { BoltIcon, CurrencyIcon, DocumentIcon, FreeIcon } from '../components/icons';
 import { SITE_URL, jsonLd } from '../utils/schema';
-import { computeTotals } from '../utils/totals';
-import { formatCurrency } from '../utils/currency';
-import {
-  InvoiceData,
-  createEmptyInvoice,
-  getReadiness,
-  normaliseInvoice,
-  todayIso,
-} from '../types/invoice';
-
-const AUTOSAVE_DELAY_MS = 2000;
 
 const FEATURES = [
   {
@@ -96,6 +70,10 @@ const FAQS = [
     a: 'It produces a tax invoice in the Rule 46 format: your GSTIN and your client’s, place of supply, HSN or SAC codes, the taxable value after any discount, and the CGST + SGST or IGST split worked out from your state and the place of supply, with the total written out in words. Whether a particular invoice is compliant also depends on your own registration and filings, so check anything unusual with your accountant.',
   },
   {
+    q: 'Can I create a proforma invoice, a quotation or a delivery challan?',
+    a: 'Yes. The same editor produces all four documents, each with the correct heading and its own caveats printed on it — a proforma and a quotation both state that they are not tax invoices, and a delivery challan cites Rule 55. Pick the format you need from the links at the foot of this page.',
+  },
+  {
     q: 'Is my invoice data saved automatically?',
     a: 'Yes. Your invoice is saved in your browser session so you will not lose progress if you refresh the page, and the businesses, clients and item descriptions you reuse are stored locally for autocomplete. Nothing is ever uploaded to a server.',
   },
@@ -112,175 +90,8 @@ const FAQ_SCHEMA = {
 };
 
 export default function Home() {
-  const [invoice, setInvoice] = useState<InvoiceData>(createEmptyInvoice);
-  const [showSavedDataManager, setShowSavedDataManager] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-  const [mobileView, setMobileView] = useState<'edit' | 'preview'>('edit');
-
-  const history = useInvoiceHistory();
-
-  const saveTimeouts = useRef<{
-    fromCompany?: ReturnType<typeof setTimeout>;
-    toCompany?: ReturnType<typeof setTimeout>;
-    items: Map<string, ReturnType<typeof setTimeout>>;
-  }>({ items: new Map() });
-
-  // Restores the draft and defaults the invoice date to today.
-  //
-  // Both have to happen after mount rather than in the useState initialiser:
-  // this is a static export, so an initialiser runs at build time as well, and
-  // it would bake the build date into the HTML and then mismatch on hydration.
-  useEffect(() => {
-    const saved = sessionStorage.getItem('invoice-data');
-    let restored: InvoiceData | null = null;
-    if (saved) {
-      try {
-        restored = normaliseInvoice(JSON.parse(saved));
-      } catch {
-        // Unparseable draft: fall through to a fresh invoice.
-      }
-    }
-
-    const base = restored ?? createEmptyInvoice();
-    // Only fill an empty date, so a draft the user deliberately cleared or set
-    // is never overwritten.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setInvoice(base.invoiceDate ? base : { ...base, invoiceDate: todayIso() });
-  }, []);
-
-  /**
-   * Continues the user's own numbering sequence on a fresh invoice.
-   *
-   * Runs separately from the restore above because it depends on IndexedDB,
-   * which resolves later. It only ever fills a blank field -- a number the
-   * user typed, or one restored from a draft, is never overwritten.
-   */
-  useEffect(() => {
-    const suggestion = suggestNextInvoiceNumber();
-    if (!suggestion) return;
-    // Same exception as the restore above: the source is asynchronous storage,
-    // so the value cannot exist at first render. The functional update is what
-    // makes it safe -- a number typed while IndexedDB was still loading wins,
-    // because the guard is evaluated against the state at apply time rather
-    // than against the stale value this effect closed over.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setInvoice((current) =>
-      current.invoiceNumber.trim() ? current : { ...current, invoiceNumber: suggestion },
-    );
-    // Keyed on the store snapshot, not on the field: re-running on every
-    // keystroke in the number input would be pure churn.
-  }, [history]);
-
-  useEffect(() => {
-    sessionStorage.setItem('invoice-data', JSON.stringify(invoice));
-  }, [invoice]);
-
-  useEffect(() => {
-    const timeouts = saveTimeouts.current;
-    return () => {
-      if (timeouts.fromCompany) clearTimeout(timeouts.fromCompany);
-      if (timeouts.toCompany) clearTimeout(timeouts.toCompany);
-      timeouts.items.forEach(clearTimeout);
-    };
-  }, []);
-
-  /**
-   * Debounced writes into the saved-data store. Without the delay, every
-   * keystroke would persist a half-typed company name.
-   */
-  const autoSave = useCallback((next: InvoiceData, previous: InvoiceData) => {
-    const schedule = (key: 'fromCompany' | 'toCompany', changed: boolean, run: () => void) => {
-      if (!changed) return;
-      clearTimeout(saveTimeouts.current[key]);
-      saveTimeouts.current[key] = setTimeout(run, AUTOSAVE_DELAY_MS);
-    };
-
-    if (next.fromName.trim() && next.fromAddress.trim()) {
-      schedule(
-        'fromCompany',
-        previous.fromName.trim() !== next.fromName.trim() ||
-          previous.fromAddress.trim() !== next.fromAddress.trim(),
-        () => saveFromCompany(next.fromName, next.fromAddress),
-      );
-    }
-
-    if (next.toName.trim() && next.toAddress.trim()) {
-      schedule(
-        'toCompany',
-        previous.toName.trim() !== next.toName.trim() ||
-          previous.toAddress.trim() !== next.toAddress.trim(),
-        () => saveToCompany(next.toName, next.toAddress),
-      );
-    }
-
-    for (const item of next.items) {
-      if (item.description.trim().length < 3) continue;
-      const before = previous.items.find((i) => i.id === item.id);
-      const changed =
-        !before ||
-        before.description.trim() !== item.description.trim() ||
-        (before.price !== item.price && item.price > 0);
-      if (!changed) continue;
-
-      clearTimeout(saveTimeouts.current.items.get(item.id));
-      saveTimeouts.current.items.set(
-        item.id,
-        setTimeout(() => {
-          saveItemDescription(item.description, item.price > 0 ? item.price : undefined);
-          saveTimeouts.current.items.delete(item.id);
-        }, AUTOSAVE_DELAY_MS),
-      );
-    }
-  }, []);
-
-  const handleInvoiceChange = useCallback(
-    (next: InvoiceData) => {
-      autoSave(next, invoice);
-      setInvoice(next);
-
-      const hasParties = (d: InvoiceData) =>
-        Boolean(d.fromName && d.fromAddress && d.toName && d.toAddress);
-      const hasMeta = (d: InvoiceData) => Boolean(d.invoiceNumber && d.invoiceDate && d.dueDate);
-      const hasItems = (d: InvoiceData) =>
-        d.items.some((item) => item.description && item.quantity > 0 && item.price > 0);
-      const complete = (d: InvoiceData) =>
-        hasParties(d) && Boolean(d.invoiceNumber && d.invoiceDate) && hasItems(d);
-
-      if (hasParties(next) && !hasParties(invoice)) trackFormProgress('basic_info');
-      if (hasMeta(next) && !hasMeta(invoice)) trackFormProgress('invoice_details');
-      if (hasItems(next) && !hasItems(invoice)) trackFormProgress('items_added');
-
-      if (complete(next) && !complete(invoice)) {
-        trackFormProgress('complete');
-        trackInvoiceGenerated(next.currency, next.items.length, computeTotals(next).total);
-      }
-    },
-    [autoSave, invoice],
-  );
-
-  /**
-   * Replaces the editor contents with a saved invoice.
-   *
-   * A complete invoice on screen is saved before being replaced, so opening
-   * something from the history can never silently discard finished work. An
-   * incomplete one is not, because hoarding half-typed scratch drafts is what
-   * makes a history list useless.
-   */
-  const handleLoadFromHistory = useCallback(
-    (next: InvoiceData) => {
-      setInvoice((current) => {
-        if (getReadiness(current).complete) void saveInvoice(current);
-        return next;
-      });
-    },
-    [],
-  );
-
-  const { total } = computeTotals(invoice);
-  const readiness = getReadiness(invoice);
-
   return (
-    <LiveRegionProvider>
+    <>
       <Head>
         <title>Free Invoice Generator — Create Professional PDF Invoices Online | Dewiride</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -307,159 +118,34 @@ export default function Home() {
         <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(FAQ_SCHEMA)} />
       </Head>
 
-      <a
-        href="#invoice-editor"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-brand focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-brand-fg"
+      <InvoiceStudio
+        hero={
+          <>
+            <h1 className="text-3xl font-bold tracking-tight text-fg sm:text-4xl">
+              Free Invoice Generator
+            </h1>
+            <p className="mt-3 max-w-2xl text-base leading-relaxed text-fg-muted">
+              Create professional invoices in minutes with Dewiride Technologies&rsquo; free online
+              invoice generator. Generate, customise, and download PDF invoices instantly with
+              multiple currency support. Perfect for freelancers, small businesses, and
+              entrepreneurs. No registration required.
+            </p>
+            <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm text-fg-muted">
+              {[
+                '100% free forever',
+                'No registration',
+                'Multiple currencies',
+                'Professional PDF output',
+              ].map((item) => (
+                <li key={item} className="flex items-center gap-1.5">
+                  <FreeIcon className="size-4 text-brand-text" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </>
+        }
       >
-        Skip to the invoice editor
-      </a>
-
-      <SiteHeader>
-        <button
-          type="button"
-          onClick={() => setShowHistory(true)}
-          className={`${buttonClass.secondary} px-3 py-2`}
-          data-testid="open-history"
-        >
-          <DocumentIcon className="size-4" />
-          <span className="hidden sm:inline">
-            Saved invoices{history.length ? ` (${history.length})` : ''}
-          </span>
-          <span className="sr-only sm:hidden">
-            Saved invoices{history.length ? ` (${history.length})` : ''}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setShowSavedDataManager(true);
-            trackSavedDataManagerOpened();
-          }}
-          className={`${buttonClass.secondary} px-3 py-2`}
-          data-testid="open-saved-data"
-        >
-          <DatabaseIcon className="size-4" />
-          <span className="hidden sm:inline">Saved data</span>
-          <span className="sr-only sm:hidden">Manage saved data</span>
-        </button>
-      </SiteHeader>
-
-      {/* pb-24 clears the sticky mobile action bar so the footer stays reachable. */}
-      <div className="mx-auto w-full max-w-7xl px-4 pb-24 sm:px-6 lg:pb-16">
-        <div className="py-8 sm:py-12">
-          <h1 className="text-3xl font-bold tracking-tight text-fg sm:text-4xl">
-            Free Invoice Generator
-          </h1>
-          <p className="mt-3 max-w-2xl text-base leading-relaxed text-fg-muted">
-            Create professional invoices in minutes with Dewiride Technologies&rsquo; free online
-            invoice generator. Generate, customise, and download PDF invoices instantly with
-            multiple currency support. Perfect for freelancers, small businesses, and entrepreneurs.
-            No registration required.
-          </p>
-          <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm text-fg-muted">
-            {[
-              '100% free forever',
-              'No registration',
-              'Multiple currencies',
-              'Professional PDF output',
-            ].map((item) => (
-              <li key={item} className="flex items-center gap-1.5">
-                <FreeIcon className="size-4 text-brand-text" />
-                {item}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/*
-          Mobile gets a segmented control between editing and preview. Both
-          panels stay mounted (hidden, not unmounted), so focus, scroll position
-          and the form's store subscriptions survive a switch -- and the full
-          document is still there for crawlers.
-        */}
-        <div className="mb-4 lg:hidden">
-          <div
-            role="tablist"
-            aria-label="Invoice editor view"
-            className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-surface-sunken p-1"
-          >
-            {(['edit', 'preview'] as const).map((view) => (
-              <button
-                key={view}
-                type="button"
-                role="tab"
-                id={`tab-${view}`}
-                aria-selected={mobileView === view}
-                aria-controls={`panel-${view}`}
-                onClick={() => setMobileView(view)}
-                className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                  mobileView === view ? 'bg-surface text-fg shadow-card' : 'text-fg-muted'
-                }`}
-              >
-                {view === 'edit' ? 'Edit' : 'Preview'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <main className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-8">
-          <section
-            id="panel-edit"
-            role="tabpanel"
-            aria-labelledby="tab-edit"
-            className={`card p-4 sm:p-6 ${mobileView === 'edit' ? '' : 'max-lg:hidden'}`}
-          >
-            <h2 id="invoice-editor" className="mb-1 text-lg font-semibold tracking-tight text-fg">
-              Create your invoice
-            </h2>
-            <p className="text-sm text-fg-muted">
-              Everything stays in your browser. Nothing is uploaded.
-            </p>
-
-            {/*
-              Readiness, stated rather than implied. The data attribute gives an
-              automated agent a deterministic "am I done?" without re-deriving
-              the rule, and role=status means a screen-reader user hears it
-              change instead of having to hunt for the empty field.
-            */}
-            <p
-              role="status"
-              data-testid="invoice-readiness"
-              data-invoice-complete={readiness.complete}
-              className={`mb-5 mt-3 rounded-lg border px-3 py-2 text-sm ${
-                readiness.complete
-                  ? 'border-border bg-brand-subtle text-brand-text'
-                  : 'border-border bg-surface-sunken text-fg-muted'
-              }`}
-            >
-              {readiness.complete
-                ? 'Ready to download.'
-                : `Still needed: ${readiness.missing.join(', ')}.`}
-            </p>
-            <InvoiceForm data={invoice} onChange={handleInvoiceChange} />
-          </section>
-
-          <section
-            id="panel-preview"
-            role="tabpanel"
-            aria-labelledby="tab-preview"
-            className={`card p-4 sm:p-5 lg:sticky lg:top-24 ${
-              mobileView === 'preview' ? '' : 'max-lg:hidden'
-            }`}
-          >
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold tracking-tight text-fg">Invoice preview</h2>
-                <p className="mt-0.5 text-xs text-fg-muted">This is how your PDF will look.</p>
-              </div>
-              <div className="hidden lg:block">
-                <DownloadPDFButton data={invoice} />
-              </div>
-            </div>
-            <InvoicePreview data={invoice} />
-          </section>
-        </main>
-
         <section aria-labelledby="why-heading" className="card mt-12 p-6 sm:p-10">
           <h2 id="why-heading" className="text-2xl font-bold tracking-tight text-fg">
             Why choose Dewiride Technologies&rsquo; free invoice generator?
@@ -496,6 +182,8 @@ export default function Home() {
           </ol>
         </section>
 
+        <RelatedLinks />
+
         <section aria-labelledby="faq-heading" className="card mt-8 p-6 sm:p-10">
           <h2 id="faq-heading" className="text-2xl font-bold tracking-tight text-fg">
             Frequently asked questions
@@ -509,67 +197,7 @@ export default function Home() {
             ))}
           </dl>
         </section>
-      </div>
-
-      {/*
-        The download CTA used to sit below a long preview on mobile, so reaching
-        it meant scrolling past the whole invoice. Here it is always one tap
-        away, with the running total for context.
-      */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden">
-        <div className="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-[0.6875rem] font-medium uppercase tracking-wide text-fg-muted">
-              Total
-            </p>
-            <p className="truncate text-base font-bold tabular text-fg" data-testid="sticky-total">
-              {formatCurrency(total, invoice.currency)}
-            </p>
-          </div>
-          <DownloadPDFButton data={invoice} className={`${buttonClass.primary} shrink-0`} />
-        </div>
-      </div>
-
-      <footer className="border-t border-border bg-surface-sunken">
-        <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6">
-          <p className="text-sm text-fg-muted">
-            © 2026 Dewiride Technologies Private Limited. Free online invoice maker for businesses
-            worldwide.
-          </p>
-          <nav aria-label="Footer" className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-            {/* An unlinked page is a page crawlers reach late and rank poorly.
-                Everything the sitemap advertises is reachable from here. */}
-            <Link href="/about" className="inline-flex min-h-6 items-center py-1 text-brand-text underline underline-offset-4">
-              About
-            </Link>
-            <Link href="/privacy" className="inline-flex min-h-6 items-center py-1 text-brand-text underline underline-offset-4">
-              Privacy Policy
-            </Link>
-            <Link href="/terms" className="inline-flex min-h-6 items-center py-1 text-brand-text underline underline-offset-4">
-              Terms of Service
-            </Link>
-            <a
-              href="https://dewiride.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-6 items-center py-1 text-brand-text underline underline-offset-4"
-            >
-              Dewiride Technologies
-            </a>
-          </nav>
-        </div>
-      </footer>
-
-      <SavedDataManager
-        isOpen={showSavedDataManager}
-        onClose={() => setShowSavedDataManager(false)}
-      />
-
-      <InvoiceHistoryManager
-        isOpen={showHistory}
-        onClose={() => setShowHistory(false)}
-        onLoad={handleLoadFromHistory}
-      />
-    </LiveRegionProvider>
+      </InvoiceStudio>
+    </>
   );
 }

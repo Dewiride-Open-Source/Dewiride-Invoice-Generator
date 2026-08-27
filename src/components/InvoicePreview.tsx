@@ -3,6 +3,7 @@ import { InvoiceData, paymentRows } from '../types/invoice';
 import { useQrCode } from '../hooks/useQrCode';
 import { amountInWords } from '../utils/amountInWords';
 import { formatCurrency } from '../utils/currency';
+import { documentHeading, getDocumentType } from '../utils/documents';
 import { stateLabel } from '../utils/gst';
 import { getTemplate } from '../utils/templates';
 import { computeTotals, lineDiscount, lineTotal } from '../utils/totals';
@@ -38,6 +39,7 @@ const numericCell = `${cell} whitespace-nowrap tabular`;
 const InvoicePreview: React.FC<InvoicePreviewProps> = ({ data }) => {
   const totals = computeTotals(data);
   const template = getTemplate(data.template);
+  const docType = getDocumentType(data.docType);
   const payment = paymentRows(data.payment);
   const upiLink = invoiceUpiLink(data);
   const qr = useQrCode(upiLink);
@@ -134,21 +136,23 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ data }) => {
           )}
           {/* "Tax invoice" is the heading Rule 46 names, and it is what makes
               the document recognisable to the client's accountant. It appears
-              only once a GSTIN says the invoice actually carries GST. */}
+              only once a GSTIN says the document actually carries GST -- and
+              only on an invoice. A GSTIN on a quotation does not turn the
+              quotation into a tax invoice. */}
           <p className="text-2xl font-bold tracking-wide text-paper-fg" data-testid="preview-heading">
-            {isTaxInvoice ? 'TAX INVOICE' : 'INVOICE'}
+            {documentHeading(docType, isTaxInvoice)}
           </p>
         </div>
         <dl className={`shrink-0 text-right text-xs ${template.bandHeader ? '[&_dt]:opacity-80' : ''}`}>
-          <dt className="text-paper-fg-muted">Invoice number</dt>
+          <dt className="text-paper-fg-muted">{docType.noun} number</dt>
           <dd className="mb-1.5 font-semibold text-paper-fg">
             {data.invoiceNumber || <Placeholder>Not set</Placeholder>}
           </dd>
-          <dt className="text-paper-fg-muted">Invoice date</dt>
+          <dt className="text-paper-fg-muted">{docType.noun} date</dt>
           <dd className="mb-1.5 font-semibold text-paper-fg">
             {data.invoiceDate || <Placeholder>Not set</Placeholder>}
           </dd>
-          <dt className="text-paper-fg-muted">Due date</dt>
+          <dt className="text-paper-fg-muted">{docType.dueDatePrintLabel}</dt>
           <dd className="font-semibold text-paper-fg">
             {data.dueDate || <Placeholder>Not set</Placeholder>}
           </dd>
@@ -342,6 +346,20 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ data }) => {
         <p className="mt-3 text-xs text-paper-fg" data-testid="preview-amount-words">
           <span className="text-paper-fg-muted">Amount in words: </span>
           <span className="font-semibold">{words}</span>
+        </p>
+      )}
+
+      {/*
+        What the document is not. A proforma that reads like an invoice is the
+        single most common way a buyer's accounts team books a sale that has
+        not happened, or claims credit that is not available.
+      */}
+      {docType.disclaimer && (
+        <p
+          className="mt-3 rounded-[var(--paper-radius)] border border-paper-border bg-paper-sunken p-3 text-[0.6875rem] leading-relaxed text-paper-fg-muted"
+          data-testid="preview-doc-disclaimer"
+        >
+          {docType.disclaimer}
         </p>
       )}
 

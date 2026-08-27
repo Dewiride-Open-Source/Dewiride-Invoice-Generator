@@ -106,13 +106,16 @@ jobs:
           retention-days: 7
 
       - name: Report bundle size
-        # A ceiling, not a report. 150.8 KB gzip today.
+        # A ceiling, not a report. 154.2 KB gzip on the home page today.
         #
         # History, so the trend is visible rather than just the number:
         #   145    baseline
         #   148    payment block -- logo picker, seven payment fields, UPI link
         #   152    GST -- 37 state codes, the GSTIN checksum, amount-in-words in
         #          two numbering systems, and eight more form fields, for 4.1 KB
+        #   158    content surface -- a shared footer carrying the link hub, the
+        #          in-content related-links block, four document types, and the
+        #          Rule 46(b) serial-number check, for 3.4 KB
         #
         # Neither raise included the heavy part: the PDF engine and the QR
         # encoder are in lazy chunks, which the same script proves on every run.
@@ -126,7 +129,17 @@ jobs:
         # not the default answer. Anything that can wait for an event handler
         # should be imported there, the way the PDF engine and the QR encoder
         # are.
-        run: node scripts/measure-first-paint.mjs --budget=152
+        run: node scripts/measure-first-paint.mjs --budget=158
+
+      - name: Check the heaviest landing page too
+        # The budget above only sees index.html. A landing page renders the same
+        # studio plus its own prose, so it is the page that would drift over
+        # first -- and /tools/upi-qr-generator/ is the one place a careless
+        # static `import` of the QR encoder would look natural, which is
+        # exactly what the forbidden-module check exists to catch.
+        run: |
+          node scripts/measure-first-paint.mjs out quotation-format/index.html --budget=158
+          node scripts/measure-first-paint.mjs out tools/upi-qr-generator/index.html --budget=158
 
       - name: Deploy
         id: builddeploy

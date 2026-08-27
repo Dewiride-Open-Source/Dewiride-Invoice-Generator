@@ -12,13 +12,39 @@ There is nothing to sign up for and no invoice count to exhaust.
 
 - Builds a professional PDF invoice from a form, with a live preview that
   matches the PDF exactly.
+- Produces four documents from one editor, each correctly headed and
+  captioned: tax invoice, proforma invoice, quotation and delivery challan.
+  Only the invoice becomes a "TAX INVOICE" when a GSTIN is present -- a GSTIN
+  on a quotation does not make it one.
+- Indian GST: both GSTINs, place of supply, HSN/SAC per line, per-line
+  discount deducted before tax, and the CGST + SGST or IGST split worked out
+  from the supplier's state and the place of supply. GSTINs are validated
+  against their own checksum digit, and tax invoice numbers are checked
+  against Rule 46(b) (16 characters; letters, digits, hyphen and slash only).
 - Supports 150+ currencies, formatted with the correct symbol, decimal places
-  and digit grouping for each (JPY has no minor unit, KWD has three, en-IN
+  and digit grouping for each (JPY has no minor unit, KWD has three, INR
   groups as 1,23,456).
+- Writes the total in words -- the Indian lakh/crore system for rupees, the
+  international system with the ISO code for everything else.
+- Prints a UPI payment QR built to the NPCI upi://pay link format, carrying
+  the exact total and the document number as the payment note.
 - Remembers businesses, clients and item descriptions in the browser for
   autocomplete, and lets the user inspect or delete all of it.
-- Keeps the current draft across a page refresh.
+- Keeps the current draft across a page refresh, and the fifty most recent
+  finished documents in IndexedDB, each document type numbered in its own
+  series.
 - Works on mobile, in light and dark themes, and meets WCAG AA contrast.
+
+## What it deliberately cannot do
+
+- It cannot produce an IRN or a signed e-invoice. Only an Invoice Registration
+  Portal can. Under Rule 48(5), a business above the e-invoicing turnover
+  threshold that issues an invoice any other way has issued something that
+  "shall not be treated as an invoice".
+- It does not file returns, connect to the GST portal, or verify a GSTIN
+  against the GST network. Nothing here talks to a network at all.
+- It does not claim to make anyone GST compliant. It produces a document in
+  the Rule 46 format; compliance depends on registration, rates and filings.
 
 ## Privacy
 
@@ -30,6 +56,14 @@ names, addresses and amounts are not.
 ## Pages
 
 - [Invoice generator](https://invoice.dewiride.com/): the tool itself.
+- [GST invoice generator](https://invoice.dewiride.com/gst-invoice-generator/): the tool preset for an Indian tax invoice.
+- [GST invoice format](https://invoice.dewiride.com/gst-invoice-format/): Rule 46 clause by clause, the 16-character serial number rule, HSN depth, time limits, e-invoicing.
+- [Proforma invoice format](https://invoice.dewiride.com/proforma-invoice-format/): why it is not an invoice, and the receipt-voucher chain when an advance is paid against one.
+- [Quotation format](https://invoice.dewiride.com/quotation-format/): offer versus invitation to treat under the Indian Contract Act, validity dates, and the purchase-order counter-offer trap.
+- [Delivery challan format](https://invoice.dewiride.com/delivery-challan-format/): Rule 55's four cases, its nine particulars, triplicate markings, e-way bills and job work.
+- [GST calculator](https://invoice.dewiride.com/tools/gst-calculator/): add or remove GST using Rule 35's formula, with the current rate schedule.
+- [UPI QR generator](https://invoice.dewiride.com/tools/upi-qr-generator/): the upi://pay grammar, static versus dynamic, and the limits.
+- [Amount in words](https://invoice.dewiride.com/tools/amount-in-words/): the Indian numbering system, and where the words legally beat the figures.
 - [About](https://invoice.dewiride.com/about/): who operates it, and contact details.
 - [Privacy policy](https://invoice.dewiride.com/privacy/): what is and is not collected.
 - [Terms of service](https://invoice.dewiride.com/terms/): terms of use.
@@ -37,8 +71,8 @@ names, addresses and amounts are not.
 ## For automated agents
 
 The page is built to be driven without CSS selectors. Every control has a
-unique accessible name, and the form's completion state is exposed both as
-visible text and as a `data-invoice-complete` attribute on an element with
-`role="status"`, so an agent can tell "ready" from "half-filled" without
-re-deriving the rule. Filling the labelled fields and activating the
+unique accessible name within its landmark, and the form's completion state is
+exposed both as visible text and as a `data-invoice-complete` attribute on an
+element with `role="status"`, so an agent can tell "ready" from "half-filled"
+without re-deriving the rule. Filling the labelled fields and activating the
 "Download as PDF" button is the whole flow.

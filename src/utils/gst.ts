@@ -162,3 +162,57 @@ export const taxTreatment = ({
 
 /** Whether the GST-specific fields are worth showing at all. */
 export const isGstCurrency = (currency: string): boolean => currency === 'INR';
+
+// --- Rule 46(b): the serial number ----------------------------------------
+
+/**
+ * "A consecutive serial number not exceeding sixteen characters, in one or
+ * multiple series, containing alphabets or numerals or special characters-
+ * hyphen or dash and slash symbolised as '-' and '/' respectively, and any
+ * combination thereof, unique for a financial year." -- Rule 46(b), CGST
+ * Rules 2017.
+ *
+ * Two things about that sentence catch people out, and neither is caught by
+ * any accounting tool or rejected by the GST portal at the point of issue:
+ * only *two* punctuation marks are legal, and sixteen characters counts the
+ * hyphens and slashes too. "INV#0001" and "DEWIRIDE/2026-27/00001" both look
+ * entirely normal and are both breaches.
+ */
+export const INVOICE_NUMBER_MAX_LENGTH = 16;
+
+const LEGAL_INVOICE_NUMBER_CHAR = /[A-Za-z0-9/-]/;
+
+const describeChar = (char: string): string => {
+  if (char === ' ') return 'the space';
+  if (char === '_') return 'the underscore';
+  if (char === '.') return 'the full stop';
+  if (char === '#') return 'the hash';
+  return `"${char}"`;
+};
+
+/**
+ * What is wrong with this document number under Rule 46(b), or '' if nothing
+ * is.
+ *
+ * Reported rather than enforced. The rule binds a GST tax invoice, and this
+ * tool also produces quotations, proformas and invoices for businesses with
+ * no Indian registration at all -- so rewriting what someone typed, or
+ * refusing it, would be answering a question they did not ask.
+ */
+export const invoiceNumberIssue = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+
+  if (trimmed.length > INVOICE_NUMBER_MAX_LENGTH) {
+    return `Rule 46(b) caps a tax invoice number at ${INVOICE_NUMBER_MAX_LENGTH} characters, counting hyphens and slashes. This one is ${trimmed.length}.`;
+  }
+
+  const illegal = [...new Set(trimmed.split('').filter((char) => !LEGAL_INVOICE_NUMBER_CHAR.test(char)))];
+  if (illegal.length) {
+    return `Rule 46(b) allows letters, digits, hyphen and slash only. Remove ${illegal
+      .map(describeChar)
+      .join(', ')}.`;
+  }
+
+  return '';
+};

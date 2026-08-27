@@ -33,6 +33,9 @@ const check = process.argv.includes('--check');
  */
 const OVERRIDES = {
   '/': { priority: '1.0', changefreq: 'weekly' },
+  // The two pages the India-first content is actually aimed at.
+  '/gst-invoice-generator/': { priority: '0.9', changefreq: 'weekly' },
+  '/gst-invoice-format/': { priority: '0.9', changefreq: 'monthly' },
   '/about/': { priority: '0.5', changefreq: 'yearly' },
   '/privacy/': { priority: '0.3', changefreq: 'yearly' },
   '/terms/': { priority: '0.3', changefreq: 'yearly' },

@@ -2,6 +2,7 @@ import React from 'react';
 import { Document, Font, Image, Page, Path, StyleSheet, Svg, Text, View } from '@react-pdf/renderer';
 import { InvoiceData, paymentRows } from '../types/invoice';
 import { amountInWords } from '../utils/amountInWords';
+import { documentHeading, getDocumentType } from '../utils/documents';
 import { formatCurrency } from '../utils/currency';
 import { stateLabel } from '../utils/gst';
 import { Template, TemplateId, getTemplate } from '../utils/templates';
@@ -139,7 +140,7 @@ function buildStyles(template: Template) {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 20,
+    marginBottom: 16,
     // A band design puts the header inside a solid block; every other design
     // separates it from the body with a rule.
     ...(template.bandHeader
@@ -168,11 +169,24 @@ function buildStyles(template: Template) {
     fontWeight: 'bold',
     color: template.bandHeader ? accentFg : '#1f2937',
   },
+  /*
+    The vertical rhythm here is tuned to a page, not to taste.
+
+    A three-line GST invoice used to end its table at 585pt and then need
+    192pt for the totals block, against 185pt of usable page -- so it missed
+    by seven points and threw the whole totals group onto a second sheet,
+    leaving page one two-thirds empty. Every value below that was slack rather
+    than design has been taken out to buy that back: the addresses row had its
+    own vertical padding on top of the cards' padding, and three gaps were 20pt
+    where 12-16 reads identically.
+
+    tests/documents.spec.ts asserts the three-line case stays on one page, so
+    a future addition cannot quietly spend this again.
+  */
   addresses: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
-    paddingVertical: 4,
+    marginBottom: 14,
     gap: 20,
   },
   addressBlock: {
@@ -210,7 +224,7 @@ function buildStyles(template: Template) {
   },
   table: {
     width: '100%',
-    marginBottom: 16,
+    marginBottom: 12,
     borderRadius: radius,
     overflow: 'hidden',
     borderWidth: 1,
@@ -260,7 +274,7 @@ function buildStyles(template: Template) {
     backgroundColor: '#ffffff',
   },
   totalsContainer: {
-    marginTop: 14,
+    marginTop: 10,
     alignSelf: 'flex-end',
     width: '52%',
   },
@@ -318,6 +332,22 @@ function buildStyles(template: Template) {
     fontSize: 9,
     color: '#374151',
     lineHeight: 1.4,
+  },
+  /*
+    What the document is not. Bordered as well as filled, because the Minimal
+    design's sunken colour is white -- a fill alone would leave this paragraph
+    indistinguishable from the notes below it.
+  */
+  docNote: {
+    marginTop: 10,
+    padding: 8,
+    fontSize: 8,
+    lineHeight: 1.45,
+    color: '#4b5563',
+    backgroundColor: sunken,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: radius,
   },
   closing: {
     marginTop: 18,
@@ -480,6 +510,7 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ data }) => {
   const totals = computeTotals(data);
   const template = getTemplate(data.template);
   const styles = stylesFor(template);
+  const docType = getDocumentType(data.docType);
   const payment = paymentRows(data.payment);
   const upiLink = invoiceUpiLink(data);
   // Synchronous, unlike the preview's hook: the encoder is already in this
@@ -531,20 +562,22 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ data }) => {
               </View>
             ) : null}
             {/* The heading Rule 46 names. It appears only once a GSTIN says
-                the invoice actually carries GST. */}
-            <Text style={styles.title}>{isTaxInvoice ? 'TAX INVOICE' : 'INVOICE'}</Text>
+                the document actually carries GST -- and only on an invoice. A
+                GSTIN on a quotation does not make the quotation a tax
+                invoice; see src/utils/documents.ts. */}
+            <Text style={styles.title}>{documentHeading(docType, isTaxInvoice)}</Text>
           </View>
           <View style={styles.invoiceInfo}>
             <View style={{ marginBottom: 8 }}>
-              <Text style={styles.invoiceLabel}>Invoice Number</Text>
+              <Text style={styles.invoiceLabel}>{docType.noun} Number</Text>
               <Text style={styles.invoiceValue}>{data.invoiceNumber}</Text>
             </View>
             <View style={{ marginBottom: 8 }}>
-              <Text style={styles.invoiceLabel}>Invoice Date</Text>
+              <Text style={styles.invoiceLabel}>{docType.noun} Date</Text>
               <Text style={styles.invoiceValue}>{data.invoiceDate}</Text>
             </View>
             <View>
-              <Text style={styles.invoiceLabel}>Due Date</Text>
+              <Text style={styles.invoiceLabel}>{docType.dueDatePrintLabel}</Text>
               <Text style={styles.invoiceValue}>{data.dueDate}</Text>
             </View>
           </View>
@@ -698,6 +731,20 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ data }) => {
           </Text>
         ) : null}
         </View>
+
+        {/*
+          What the document is not. A proforma that reads like an invoice is
+          the most common way a buyer's accounts team books a sale that has
+          not happened, or claims credit that is not available. Its own
+          wrap={false} rather than joining the totals group above: three lines
+          of small print added to that block would make it tall enough to be
+          pushed onto a page of its own.
+        */}
+        {docType.disclaimer ? (
+          <Text style={styles.docNote} wrap={false}>
+            {docType.disclaimer}
+          </Text>
+        ) : null}
 
         {/* Payment details. wrap={false} keeps the block, and the QR in
             particular, from being split across a page break. */}

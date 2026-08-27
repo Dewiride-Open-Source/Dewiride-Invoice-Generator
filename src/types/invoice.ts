@@ -1,4 +1,5 @@
 import { DEFAULT_CURRENCY, isSupportedCurrency } from '../utils/currency';
+import { DEFAULT_DOCUMENT_TYPE, DocumentTypeId, isDocumentTypeId } from '../utils/documents';
 import { isGstCurrency } from '../utils/gst';
 import { isStoredImage } from '../utils/image';
 import { DEFAULT_TEMPLATE, TemplateId, isTemplateId } from '../utils/templates';
@@ -92,6 +93,12 @@ export interface InvoiceData {
   signature: string;
   /** Which design the preview and the PDF draw. See utils/templates.ts. */
   template: TemplateId;
+  /**
+   * Invoice, proforma, quotation or delivery challan. See utils/documents.ts
+   * -- it changes the printed heading, two field labels, and whether the
+   * document asks to be paid.
+   */
+  docType: DocumentTypeId;
 }
 
 export const createEmptyPayment = (): PaymentDetails => ({
@@ -171,6 +178,7 @@ export const createEmptyInvoice = (): InvoiceData => ({
   placeOfSupply: '',
   signature: '',
   template: DEFAULT_TEMPLATE,
+  docType: DEFAULT_DOCUMENT_TYPE,
 });
 
 /**
@@ -240,6 +248,7 @@ export const normaliseInvoice = (raw: unknown): InvoiceData => {
     // A design that was renamed or removed falls back rather than rendering a
     // colourless invoice from an id nothing recognises.
     template: isTemplateId(draft.template) ? draft.template : DEFAULT_TEMPLATE,
+    docType: isDocumentTypeId(draft.docType) ? draft.docType : DEFAULT_DOCUMENT_TYPE,
   };
 };
 

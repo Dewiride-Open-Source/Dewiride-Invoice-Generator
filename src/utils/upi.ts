@@ -18,6 +18,7 @@
  * locally; no VPA, amount or invoice number leaves the browser.
  */
 import { InvoiceData } from '../types/invoice';
+import { getDocumentType } from './documents';
 import { computeTotals } from './totals';
 
 /** UPI settles in rupees only. A EUR invoice gets no QR, deliberately. */
@@ -102,14 +103,24 @@ export const buildUpiLink = ({
 
 /**
  * The link for a given invoice, so the preview and the PDF cannot disagree
- * about the amount being requested. The note carries the invoice number, which
- * is what lets the sender reconcile the payment against the invoice.
+ * about the amount being requested. The note carries the document number,
+ * which is what lets the sender reconcile the payment against it.
+ *
+ * Returns null for a document that is not a demand for payment. A quotation
+ * has not been agreed yet and a delivery challan is a movement note, so a
+ * "scan to pay" code on either invites a transfer against a document that
+ * does not ask for one -- see src/utils/documents.ts.
  */
-export const invoiceUpiLink = (data: InvoiceData): string | null =>
-  buildUpiLink({
+export const invoiceUpiLink = (data: InvoiceData): string | null => {
+  const docType = getDocumentType(data.docType);
+  if (!docType.requestsPayment) return null;
+
+  const reference = data.invoiceNumber.trim();
+  return buildUpiLink({
     upiId: data.payment.upiId,
     payeeName: data.fromName,
     amount: computeTotals(data).total,
-    note: data.invoiceNumber.trim() ? `Invoice ${data.invoiceNumber.trim()}` : '',
+    note: reference ? `${docType.noun} ${reference}` : '',
     currency: data.currency,
   });
+};

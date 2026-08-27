@@ -73,8 +73,13 @@ export const formatRate = (rate: number): string => String(Number(rate.toFixed(3
  * rather than by halving one total. That is what the statute says happens --
  * two levies of half the rate each -- and it means the two printed halves are
  * each independently correct, and the tax total is by construction their sum.
+ *
+ * Exported because the standalone GST calculator needs the same split. A
+ * second implementation of it living on /tools/gst-calculator/ would be free
+ * to disagree with the invoices this site produces, which is the one thing a
+ * tax calculator must never do.
  */
-const buildTaxLines = (
+export const buildTaxLines = (
   taxable: number,
   rate: number,
   treatment: TaxTreatment,

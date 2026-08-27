@@ -11,6 +11,11 @@ scan. Whether a particular invoice is *compliant* also depends on the sender's
 registration and filings, which is a distinction the UI states rather than
 glosses over.
 
+The same editor produces four documents — **invoice, proforma invoice,
+quotation and delivery challan** — and there are three standalone tools (GST
+calculator, UPI QR builder, amount-in-words converter) alongside a set of
+reference pages.
+
 Live at **[invoice.dewiride.com](https://invoice.dewiride.com)**.
 
 ## Stack
@@ -228,30 +233,86 @@ src/
 │   ├── a11y/            LiveRegion (announcements), Modal (native <dialog>)
 │   ├── fields.tsx       Labelled form primitives
 │   ├── icons.tsx        Every SVG in the app
+│   ├── InvoiceStudio    Editor + preview + download + persistence. Every page
+│   │                     that offers the tool renders this one component.
 │   ├── InvoiceForm      The editor
 │   ├── ImageField       Logo and signature picker; resizing lives in utils/image
 │   ├── TemplatePicker   The four invoice designs
 │   ├── InvoicePreview   Live preview ("paper", stays light in dark mode)
 │   ├── InvoicePDF       @react-pdf document — a separate rendering engine
-│   └── InvoicePdfRenderer  The lazy boundary. Never import this statically.
+│   ├── InvoicePdfRenderer  The lazy boundary. Never import this statically.
 │   ├── SavedDataManager    Businesses/clients/items kept for autocomplete
-│   └── InvoiceHistoryManager  Saved invoices: open, copy, export, import
+│   ├── InvoiceHistoryManager  Saved invoices: open, copy, export, import
+│   ├── ContentPage      Shell for pages that are not the studio
+│   ├── Article          Long-form prose styling, FAQ list, FAQPage JSON-LD
+│   ├── SiteHeader / SiteFooter / RelatedLinks   Chrome and internal linking
+│   └── tools/           GstCalculator, UpiQrTool, AmountWordsTool
+├── data/site-nav.ts     Every published page, once. Footer, related links
+│                         and llms.txt all read from here.
 ├── hooks/               useSyncExternalStore bindings (saved data, history),
 │                         useQrCode (loads the encoder on demand)
 ├── types/invoice.ts     InvoiceData, normaliseInvoice(), getReadiness()
 └── utils/               savedData, invoiceHistory, schema, currency, totals,
-                         gst, amountInWords, upi, qr, image, templates, theme,
-                         analytics
+                         gst, documents, amountInWords, upi, qr, image,
+                         templates, theme, analytics
 ```
+
+### Pages
+
+`src/pages/` is flat and explicit rather than a `[slug]` route over a data
+file. Each guide holds its own prose, so a page's copy ships in that page's
+chunk and nowhere else — one data module holding eight pages of copy would put
+all eight in every one of their bundles. The templated approach is the right
+one when the profession pages arrive; it is the wrong one for eight pages of
+genuinely different material.
+
+Two pages deliberately carry **no editor**: `/gst-invoice-format/` is a
+reference, and the three `/tools/` pages are single-purpose calculators. Four
+URLs funnelling to one download with a swapped heading is the shape of thing
+search engines issue manual actions over, so a page either has something of its
+own to say or it links to the page that does.
 
 `InvoicePDF.tsx` does not read the DOM and is unaffected by any CSS change. If
 you restyle the preview, restyle the PDF to match, or they will drift.
 
+### Four documents, one editor
+
+`src/utils/documents.ts` holds the table. An invoice, a proforma, a quotation
+and a delivery challan are the same line-item table wrapped in four different
+legal meanings, and the differences that matter are encoded rather than left to
+the page:
+
+- **Only an invoice becomes a `TAX INVOICE`.** Every other type's `taxHeading`
+  equals its `heading`, so a GSTIN on a quotation does not print those two
+  words. That is a rule, not an oversight waiting to be tidied up.
+- **A document that does not ask for money gets no payment QR.**
+  `invoiceUpiLink` returns null for a quotation and a challan, in one place, so
+  the preview and the PDF cannot disagree.
+- Each type carries its own field labels (`Valid until`, not `Due date`), its
+  own file-name stem, its own disclaimer printed under the totals, and **its own
+  running number series** — every number a quotation spends leaves a gap in a
+  tax-invoice series that Rule 46(b) requires to be consecutive.
+
+A page declares its type through `<InvoiceStudio config={...} />`. `docType` is
+page identity and always wins over the restored draft; `defaults` is a starting
+point and applies only when there is no draft. Opening something from the
+history keeps the type it was saved with.
+
+### The vertical rhythm in the PDF is load-bearing
+
+The totals block and the amount in words are one `wrap={false}` unit, so they
+either fit below the table or the whole group moves to the next sheet. It was
+missing by about seven points, which put an ordinary three-line invoice on two
+pages with the first two-thirds empty. The gaps were retuned to buy that back,
+and `tests/gst.spec.ts` asserts both directions: a three-line invoice stays on
+one page, and a five-line one still does not split its totals. Both are
+mutation-verified.
+
 ## Accessibility
 
-The suite runs axe over the home page in both themes, the legal pages, the
-dialog and combobox while open, and a filled-in tax invoice — the states a
-static crawl never reaches. It also covers keyboard-only operation, the dialog
+The suite runs axe over every published page in both themes, the dialog and
+combobox while open, and a filled-in tax invoice — the states a static crawl
+never reaches. It also covers keyboard-only operation, the dialog
 focus trap, the combobox keyboard map, the heading outline and live-region
 announcements.
 
