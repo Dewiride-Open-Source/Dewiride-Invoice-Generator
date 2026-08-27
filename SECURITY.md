@@ -62,6 +62,39 @@ browser after use (there is a visible control to erase it), missing security
 headers that a static CDN cannot meaningfully enforce, or automated-scanner
 output with no working reproduction against the deployed site.
 
+## Notes for anyone auditing the deployment
+
+The repository is public and the CI workflow is part of it, so it is worth
+saying plainly what is and is not in there.
+
+Nothing in this repository is a credential. The workflow references
+`AZURE_STATIC_WEB_APPS_API_TOKEN_...`, `GOOGLE_SITE_VERIFICATION` and
+`BING_SITE_VERIFICATION` by name; the values are GitHub Actions secrets and are
+never readable from the repository. `public/staticwebapp.config.json` holds
+cache rules and response headers, all of which are already visible in any
+response from the site. The analytics site id and the GA measurement id are
+compiled into `_document` and therefore into the HTML of a live public website
+— publishing the source exposes neither of them for the first time.
+
+The IndexNow key at `public/<key>.txt` is deliberately public. Hosting it *is*
+the ownership proof; possessing it lets you tell Bing that this host changed,
+and nothing else.
+
+Two properties of the workflow are load-bearing and should be treated as part
+of the security posture rather than as configuration:
+
+- It triggers on **`pull_request`, never `pull_request_target`.** A fork's pull
+  request runs code the fork controls, `package.json` scripts included. Under
+  `pull_request` that code is given no secrets and a read-only token. Under
+  `pull_request_target` it would run in this repository's context with access to
+  the deployment token.
+- The deploy steps are **skipped for pull requests from forks** rather than
+  attempted and failed. Every check before them still runs, so an outside
+  contributor gets the full suite.
+
+Keep GitHub's default requirement that a maintainer approve workflow runs from
+first-time contributors.
+
 ## Supported versions
 
 The deployed site at <https://invoice.dewiride.com> is the only supported
