@@ -4,6 +4,7 @@ import { InvoiceData, paymentRows } from '../types/invoice';
 import { amountInWords } from '../utils/amountInWords';
 import { formatCurrency } from '../utils/currency';
 import { stateLabel } from '../utils/gst';
+import { Template, TemplateId, getTemplate } from '../utils/templates';
 // Both of these are heavier than they look, and both are safe here: this
 // module is only ever reached through `await import('./InvoicePdfRenderer')`,
 // so everything it pulls in lands in the lazy chunk with the PDF engine.
@@ -97,7 +98,30 @@ Font.register({
 // Currency values must never be split across lines mid-symbol.
 Font.registerHyphenationCallback((word) => [word]);
 
-const styles = StyleSheet.create({
+/**
+ * The stylesheet, built from the chosen design.
+ *
+ * Same palette object the preview redefines its CSS custom properties from, so
+ * a colour cannot be right on screen and wrong in the file. Memoised because
+ * StyleSheet.create is not free and this is called on every PDF render.
+ */
+const styleCache = new Map<TemplateId, ReturnType<typeof buildStyles>>();
+
+const stylesFor = (template: Template) => {
+  const cached = styleCache.get(template.id);
+  if (cached) return cached;
+  const built = buildStyles(template);
+  styleCache.set(template.id, built);
+  return built;
+};
+
+function buildStyles(template: Template) {
+  const { accent, accentFg, header, headerFg, sunken, total, totalFg } = template.palette;
+  const radius = template.radius;
+  // Unfilled designs draw a hairline where a filled one draws a background.
+  const fill = (colour: string) => (template.filled ? colour : '#ffffff');
+
+  return StyleSheet.create({
   page: {
     flexDirection: 'column',
     backgroundColor: '#ffffff',
@@ -116,14 +140,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 20,
-    paddingBottom: 18,
-    borderBottomWidth: 2,
-    borderBottomColor: '#2563eb',
+    // A band design puts the header inside a solid block; every other design
+    // separates it from the body with a rule.
+    ...(template.bandHeader
+      ? { backgroundColor: accent, borderRadius: radius, padding: 16 }
+      : { paddingBottom: 18, borderBottomWidth: 2, borderBottomColor: accent }),
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: template.bandHeader ? accentFg : '#1f2937',
     letterSpacing: 1,
   },
   invoiceInfo: {
@@ -133,13 +159,14 @@ const styles = StyleSheet.create({
   },
   invoiceLabel: {
     fontSize: 10,
-    color: '#6b7280',
+    color: template.bandHeader ? accentFg : '#6b7280',
+    opacity: template.bandHeader ? 0.85 : 1,
     marginBottom: 2,
   },
   invoiceValue: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: template.bandHeader ? accentFg : '#1f2937',
   },
   addresses: {
     flexDirection: 'row',
@@ -151,15 +178,16 @@ const styles = StyleSheet.create({
   addressBlock: {
     width: '47%',
     padding: 16,
-    backgroundColor: '#f8fafc',
-    borderRadius: 8,
+    backgroundColor: fill(sunken),
+    ...(template.filled ? {} : { borderWidth: 1, borderColor: '#e5e7eb' }),
+    borderRadius: radius,
     minHeight: 78,
   },
   addressTitle: {
     fontWeight: 'bold',
     marginBottom: 10,
     fontSize: 12,
-    color: '#2563eb',
+    color: accent,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -183,7 +211,7 @@ const styles = StyleSheet.create({
   table: {
     width: '100%',
     marginBottom: 16,
-    borderRadius: 8,
+    borderRadius: radius,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#e5e7eb',
@@ -193,7 +221,8 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   tableHeader: {
-    backgroundColor: '#1f2937',
+    backgroundColor: header,
+    ...(template.filled ? {} : { borderBottomWidth: 2, borderBottomColor: '#111827' }),
     minHeight: 45,
   },
   // Width comes from columnWidths at render time; everything else is shared.
@@ -213,7 +242,7 @@ const styles = StyleSheet.create({
   tableCellHeader: {
     fontSize: 11,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: headerFg,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -225,7 +254,7 @@ const styles = StyleSheet.create({
     hyphenationFactor: 0,
   },
   tableRowEven: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: fill(sunken),
   },
   tableRowOdd: {
     backgroundColor: '#ffffff',
@@ -241,8 +270,9 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 15,
     marginBottom: 2,
-    backgroundColor: '#f8fafc',
-    borderRadius: 4,
+    backgroundColor: fill(sunken),
+    ...(template.filled ? {} : { borderBottomWidth: 1, borderBottomColor: '#e5e7eb' }),
+    borderRadius: Math.min(radius, 4),
   },
   totalLabel: {
     fontSize: 11,
@@ -259,20 +289,21 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 15,
     marginTop: 8,
-    backgroundColor: '#2563eb',
-    borderRadius: 6,
+    backgroundColor: total,
+    ...(template.filled ? {} : { borderTopWidth: 2, borderTopColor: '#111827' }),
+    borderRadius: Math.min(radius, 6),
   },
   totalLabelFinal: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: totalFg,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   totalValueFinal: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: totalFg,
   },
   addressMeta: {
     marginTop: 6,
@@ -346,8 +377,21 @@ const styles = StyleSheet.create({
     // 595pt-wide page. The aspect ratio is preserved from the image itself.
     maxWidth: 150,
     maxHeight: 50,
-    marginBottom: 12,
     objectFit: 'contain',
+  },
+  /**
+   * A white plate behind the logo on a band design.
+   *
+   * Most logos are a single dark or brand colour, and a blue mark on an indigo
+   * block is simply not there. alignSelf keeps the plate the width of the logo
+   * rather than the width of the column.
+   */
+  logoPlate: {
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+    ...(template.bandHeader
+      ? { backgroundColor: '#ffffff', padding: 6, borderRadius: Math.min(radius, 6) }
+      : {}),
   },
   paymentSection: {
     marginTop: 22,
@@ -358,7 +402,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    borderRadius: 8,
+    borderRadius: radius,
   },
   paymentDetails: {
     flexGrow: 1,
@@ -367,7 +411,7 @@ const styles = StyleSheet.create({
   paymentTitle: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#2563eb',
+    color: accent,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
@@ -429,10 +473,13 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     textAlign: 'center',
   },
-});
+  });
+}
 
 const InvoicePDF: React.FC<InvoicePDFProps> = ({ data }) => {
   const totals = computeTotals(data);
+  const template = getTemplate(data.template);
+  const styles = stylesFor(template);
   const payment = paymentRows(data.payment);
   const upiLink = invoiceUpiLink(data);
   // Synchronous, unlike the preview's hook: the encoder is already in this
@@ -477,8 +524,12 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ data }) => {
               no alt prop to give. The a11y rule is configured to treat a
               component named Image as next/image, which this is not.
             */}
-            {/* eslint-disable-next-line jsx-a11y/alt-text */}
-            {data.logo ? <Image src={data.logo} style={styles.logo} /> : null}
+            {data.logo ? (
+              <View style={styles.logoPlate}>
+                {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                <Image src={data.logo} style={styles.logo} />
+              </View>
+            ) : null}
             {/* The heading Rule 46 names. It appears only once a GSTIN says
                 the invoice actually carries GST. */}
             <Text style={styles.title}>{isTaxInvoice ? 'TAX INVOICE' : 'INVOICE'}</Text>

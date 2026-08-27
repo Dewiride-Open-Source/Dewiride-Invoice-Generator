@@ -76,6 +76,49 @@ const PAIRS = [
   ['paper-header-fg', 'paper-header', 4.5, 'invoice table header'],
 ];
 
+/**
+ * The same pairs again, once per invoice design.
+ *
+ * A design is a redefinition of the paper tokens (see src/utils/templates.ts),
+ * so a new one is a new palette that has never been checked. Reading the hex
+ * values straight out of the TypeScript keeps this from drifting -- the
+ * alternative was a second copy of every colour, which is how a "Modern" theme
+ * ships white-on-teal at 3.1:1.
+ *
+ * Parsed rather than imported because this runs under plain node, before any
+ * build step exists to turn the .ts into something it could require.
+ */
+function readTemplates() {
+  const source = readFileSync(new URL('../src/utils/templates.ts', import.meta.url), 'utf8');
+  const body = source.slice(source.indexOf('export const TEMPLATES'));
+  const templates = [];
+  for (const match of body.matchAll(/id: '([a-z]+)',[\s\S]*?palette: \{([\s\S]*?)\}/g)) {
+    const tokens = {};
+    for (const [, key, hex] of match[2].matchAll(/(\w+): '(#[0-9a-fA-F]{3,8})'/g)) {
+      // accentFg -> paper-accent-fg, so the pair list above can be reused.
+      tokens[`paper-${key.replace(/([A-Z])/g, (c) => `-${c.toLowerCase()}`)}`] = hex;
+    }
+    templates.push([match[1], tokens]);
+  }
+  if (templates.length < 2) throw new Error('Could not read TEMPLATES from src/utils/templates.ts');
+  return templates;
+}
+
+/**
+ * Pairs that vary per design. Body text, muted text and borders are shared, so
+ * they are checked once above rather than four times here -- except against a
+ * design's own card tint, which does change.
+ */
+const TEMPLATE_PAIRS = [
+  ['paper-fg', 'paper-sunken', 4.5, 'invoice text on an address card'],
+  ['paper-fg-muted', 'paper-sunken', 4.5, 'invoice hint on an address card'],
+  ['paper-accent', 'paper', 4.5, 'section label on the sheet'],
+  ['paper-accent', 'paper-sunken', 4.5, 'section label on a card'],
+  ['paper-accent-fg', 'paper-accent', 4.5, 'reversed header text'],
+  ['paper-header-fg', 'paper-header', 4.5, 'table header'],
+  ['paper-total-fg', 'paper-total', 4.5, 'total bar'],
+];
+
 let failures = 0;
 for (const [themeName, tokens] of [['light', light], ['dark', dark]]) {
   console.log(`\n  ${themeName.toUpperCase()}`);
@@ -84,6 +127,27 @@ for (const [themeName, tokens] of [['light', light], ['dark', dark]]) {
     // for instance) still resolves to the :root value at runtime.
     const fgHex = tokens[fg] ?? light[fg];
     const bgHex = tokens[bg] ?? light[bg];
+    if (!fgHex || !bgHex) {
+      console.log(`    MISSING  --${fg} / --${bg}`);
+      failures++;
+      continue;
+    }
+    const r = ratio(fgHex, bgHex);
+    const ok = r >= min;
+    if (!ok) failures++;
+    console.log(
+      `    ${ok ? 'ok  ' : 'FAIL'} ${r.toFixed(2).padStart(5)}:1 (min ${min})  ${label}` +
+        `  [${fgHex} on ${bgHex}]`,
+    );
+  }
+}
+
+for (const [id, palette] of readTemplates()) {
+  console.log(`\n  INVOICE DESIGN: ${id.toUpperCase()}`);
+  for (const [fg, bg, min, label] of TEMPLATE_PAIRS) {
+    // Shared tokens (paper, paper-fg, paper-fg-muted) fall through to :root.
+    const fgHex = palette[fg] ?? light[fg];
+    const bgHex = palette[bg] ?? light[bg];
     if (!fgHex || !bgHex) {
       console.log(`    MISSING  --${fg} / --${bg}`);
       failures++;

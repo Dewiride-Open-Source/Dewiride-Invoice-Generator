@@ -73,6 +73,11 @@
   --paper-accent-fg: #ffffff;
   --paper-header: #1f2937;
   --paper-header-fg: #ffffff;
+  /* The final total. Separate from --paper-accent because the Minimal design
+     drops the filled bar while keeping dark section labels -- one token
+     serving both would have to be white and near-black at the same time. */
+  --paper-total: #2563eb;
+  --paper-total-fg: #ffffff;
 
   --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.08);
   --shadow-raised: 0 10px 30px -12px rgb(15 23 42 / 0.25);
@@ -156,6 +161,8 @@
   --color-paper-accent-fg: var(--paper-accent-fg);
   --color-paper-header: var(--paper-header);
   --color-paper-header-fg: var(--paper-header-fg);
+  --color-paper-total: var(--paper-total);
+  --color-paper-total-fg: var(--paper-total-fg);
 
   /* Supplied by next/font in _app.tsx. */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;

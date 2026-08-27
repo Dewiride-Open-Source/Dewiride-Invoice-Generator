@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import ImageField from './ImageField';
+import TemplatePicker from './TemplatePicker';
 import SavedOptionsDropdown from './SavedOptionsDropdown';
 import { NumberField, SelectField, TextAreaField, TextField, buttonClass } from './fields';
 import { PlusIcon, TrashIcon } from './icons';
@@ -160,6 +161,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
 
   return (
     <form className="@container space-y-5" noValidate aria-label="Invoice details">
+      {/* --- Design --- */}
+      <fieldset className={fieldsetClass}>
+        <legend className={legendClass}>Invoice design</legend>
+        <TemplatePicker value={data.template} onChange={(template) => update('template', template)} />
+      </fieldset>
+
       {/* --- Parties --- */}
       <fieldset className={fieldsetClass}>
         <legend className={legendClass}>Contact information</legend>

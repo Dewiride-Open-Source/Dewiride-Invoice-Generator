@@ -106,7 +106,7 @@ jobs:
           retention-days: 7
 
       - name: Report bundle size
-        # A ceiling, not a report. 149.4 KB gzip today.
+        # A ceiling, not a report. 150.8 KB gzip today.
         #
         # History, so the trend is visible rather than just the number:
         #   145    baseline
@@ -117,10 +117,15 @@ jobs:
         # Neither raise included the heavy part: the PDF engine and the QR
         # encoder are in lazy chunks, which the same script proves on every run.
         #
+        # The four invoice designs cost 1.3 KB, because a design is a palette
+        # the preview applies as CSS custom properties rather than a second set
+        # of components -- there is no per-design code to keep out of the
+        # bundle.
+        #
         # Raising this is meant to be a deliberate line in a diff, and it is
         # not the default answer. Anything that can wait for an event handler
-        # should be imported there. The PDF templates coming next belong
-        # entirely inside the lazy chunk and must move this number by zero.
+        # should be imported there, the way the PDF engine and the QR encoder
+        # are.
         run: node scripts/measure-first-paint.mjs --budget=152
 
       - name: Deploy

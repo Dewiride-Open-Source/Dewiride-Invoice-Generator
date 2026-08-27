@@ -1,6 +1,7 @@
 import { DEFAULT_CURRENCY, isSupportedCurrency } from '../utils/currency';
 import { isGstCurrency } from '../utils/gst';
 import { isStoredImage } from '../utils/image';
+import { DEFAULT_TEMPLATE, TemplateId, isTemplateId } from '../utils/templates';
 
 export interface InvoiceItem {
   /**
@@ -89,6 +90,8 @@ export interface InvoiceData {
   placeOfSupply: string;
   /** A data URI, as for `logo`. Rule 46 wants a signature on a tax invoice. */
   signature: string;
+  /** Which design the preview and the PDF draw. See utils/templates.ts. */
+  template: TemplateId;
 }
 
 export const createEmptyPayment = (): PaymentDetails => ({
@@ -167,6 +170,7 @@ export const createEmptyInvoice = (): InvoiceData => ({
   supplierState: '',
   placeOfSupply: '',
   signature: '',
+  template: DEFAULT_TEMPLATE,
 });
 
 /**
@@ -233,6 +237,9 @@ export const normaliseInvoice = (raw: unknown): InvoiceData => {
     buyerGstin: str(draft.buyerGstin).toUpperCase(),
     supplierState: str(draft.supplierState),
     placeOfSupply: str(draft.placeOfSupply),
+    // A design that was renamed or removed falls back rather than rendering a
+    // colourless invoice from an id nothing recognises.
+    template: isTemplateId(draft.template) ? draft.template : DEFAULT_TEMPLATE,
   };
 };
 

@@ -97,7 +97,7 @@ an unchanged commit does not claim every page changed. `npm run check:sitemap`
 asserts it matches the export.
 
 **First-paint JS has a hard ceiling.** `node scripts/measure-first-paint.mjs
---budget=152` fails CI above 152 KB gzip (149.4 KB today). Bundle growth is
+--budget=152` fails CI above 152 KB gzip (150.8 KB today). Bundle growth is
 never one bad commit, it is fifty reasonable ones. Anything large should be
 lazily imported the way the PDF engine is; raising the number should be a
 deliberate line in a diff. The same script fails if a module on the forbidden
@@ -173,6 +173,27 @@ someone's invoice. For the same reason rupee amounts are formatted `en-IN`
 "Ten Lakh", and grouping the digits in threes made the document contradict
 itself.
 
+**An invoice design is a palette, not a second set of components.**
+`src/utils/templates.ts` holds four of them. The preview already drew its
+colours from the `--paper-*` custom properties, so applying a design is a matter
+of redefining those on the preview root — every `text-paper-accent` and
+`bg-paper-header` below it follows — and the PDF builds its StyleSheet from the
+same object. That is why four designs cost about 1 KB gzip and four palettes
+rather than four components, and why none of them can drift out of step with
+the layout. One structural switch (`filled`) turns backgrounds into rules, and
+one (`bandHeader`) puts the header inside a solid block.
+
+Two traps worth knowing if you add a design. A band header has to reverse the
+body **tokens**, not set a colour on the container — the first version did the
+latter and was silently overridden by the explicit `text-paper-fg` on each
+value, so the labels printed dark on indigo while the PDF reversed them
+correctly. And a band needs a white plate behind the logo: most logos are a
+single brand colour, and a blue mark on an indigo block is simply not there.
+
+`check-contrast.mjs` reads the hex values straight out of the TypeScript and
+runs every design's pairs against AA, so a new palette cannot ship white-on-teal
+at 3:1.
+
 **Three things in the PDF must never split across a page break**, and each broke
 before it was guarded: the **totals** (`wrap={false}` — subtotal and discount
 were landing on one sheet with the tax and the total on the next), the **amount
@@ -209,6 +230,7 @@ src/
 │   ├── icons.tsx        Every SVG in the app
 │   ├── InvoiceForm      The editor
 │   ├── ImageField       Logo and signature picker; resizing lives in utils/image
+│   ├── TemplatePicker   The four invoice designs
 │   ├── InvoicePreview   Live preview ("paper", stays light in dark mode)
 │   ├── InvoicePDF       @react-pdf document — a separate rendering engine
 │   └── InvoicePdfRenderer  The lazy boundary. Never import this statically.
@@ -218,7 +240,8 @@ src/
 │                         useQrCode (loads the encoder on demand)
 ├── types/invoice.ts     InvoiceData, normaliseInvoice(), getReadiness()
 └── utils/               savedData, invoiceHistory, schema, currency, totals,
-                         gst, amountInWords, upi, qr, image, theme, analytics
+                         gst, amountInWords, upi, qr, image, templates, theme,
+                         analytics
 ```
 
 `InvoicePDF.tsx` does not read the DOM and is unaffected by any CSS change. If
