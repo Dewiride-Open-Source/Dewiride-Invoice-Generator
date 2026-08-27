@@ -15,6 +15,7 @@
     "clean": "rm -rf .next out",
     "size": "node scripts/measure-first-paint.mjs",
     "check:sitemap": "node scripts/build-sitemap.mjs --check",
+    "seo:indexnow": "node scripts/submit-indexnow.mjs",
     "check:contrast": "node scripts/check-contrast.mjs",
     "test": "playwright test",
     "build:fonts": "node scripts/build-pdf-fonts.mjs",

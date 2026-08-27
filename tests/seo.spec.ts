@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { test, expect, Page } from '@playwright/test';
 
 /**
@@ -168,5 +171,21 @@ test.describe('discoverability', () => {
     for (const url of [...llmsBody.matchAll(/\]\((https:\/\/invoice\.dewiride\.com[^)]*)\)/g)]) {
       expect(PUBLIC_ROUTES.map((r) => SITE + r)).toContain(url[1]);
     }
+  });
+
+  test('the IndexNow key is served, and is the key the submitter sends', async ({ request }) => {
+    // IndexNow proves ownership of the host by fetching this file, so if it
+    // stops being served -- dropped from public/, or renamed on one side only
+    // -- every submission is rejected with a 403. That happens in a
+    // post-deploy step nobody reads, so the failure is silent for months.
+    // Reading the key out of the script rather than repeating it here is the
+    // point: the two cannot drift.
+    const script = readFileSync(join(__dirname, '..', 'scripts', 'submit-indexnow.mjs'), 'utf8');
+    const key = script.match(/^const KEY = '([0-9a-f]+)';$/m)?.[1];
+    expect(key, 'submit-indexnow.mjs no longer declares a KEY the way this test reads it').toBeTruthy();
+
+    const res = await request.get(`/${key}.txt`);
+    expect(res.status(), `${key}.txt is not served -- is it in public/?`).toBe(200);
+    expect((await res.text()).trim()).toBe(key);
   });
 });

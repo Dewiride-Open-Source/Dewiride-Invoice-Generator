@@ -50,6 +50,7 @@ Node 20.9+ is required (Next 16). CI pins Node 22.
 | `npm run size` | First-paint JS, parsed from the exported HTML |
 | `npm run check:contrast` | Every colour pair against WCAG AA, both themes |
 | `npm run check:sitemap` | Asserts the sitemap matches the exported routes |
+| `npm run seo:indexnow` | Tells Bing/Yandex the site changed (CI runs it after a deploy) |
 | `npm run build:fonts` | Rebuild the PDF font subsets |
 | `npm run build:icons` | Rebuild favicons and PWA icons from `logo.svg` |
 | `npm run build:og` | Rebuild the social preview image |
@@ -100,6 +101,16 @@ same primary entity, which is how markup gets discarded. CI greps the chunks for
 forgotten. `lastmod` is the last commit date, not the build clock, so rebuilding
 an unchanged commit does not claim every page changed. `npm run check:sitemap`
 asserts it matches the export.
+
+**Bing is told; Google is not.** `scripts/submit-indexnow.mjs` posts the
+sitemap's URLs to IndexNow after a successful deploy to `main`. Google does not
+participate in the protocol, so this replaces nothing on that side — the reason
+it earns its place is that ChatGPT's search is Bing-backed, which makes time-to-
+Bing-index the same thing as time-to-being-cited. The key it submits is
+committed at `public/<key>.txt` and is meant to be public: hosting it is the
+entire ownership proof, and possessing it lets you tell Bing this host changed
+and nothing else. The step never fails the run, because the site is already live
+by the time it executes.
 
 **First-paint JS has a hard ceiling.** `node scripts/measure-first-paint.mjs
 --budget=158` fails CI above 158 KB gzip (154.2 KB today), and the same check

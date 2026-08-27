@@ -1,0 +1,52 @@
+name: Tax or legal content correction
+description: Something a page says about GST, the Contract Act or the UPI spec is wrong or out of date
+labels: [content, needs-citation]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These pages are read by people who then act on them, so a correction has
+        to be checkable. An uncited correction is not actionable, however
+        confident it is — rates and thresholds move, and the version you learned
+        may be the one that changed.
+  - type: input
+    id: page
+    attributes:
+      label: Which page
+      placeholder: https://invoice.dewiride.com/gst-invoice-format/
+    validations:
+      required: true
+  - type: textarea
+    id: says
+    attributes:
+      label: What it currently says
+      description: Quote the sentence.
+    validations:
+      required: true
+  - type: textarea
+    id: correct
+    attributes:
+      label: What is actually correct
+    validations:
+      required: true
+  - type: input
+    id: provision
+    attributes:
+      label: The provision
+      description: The rule, section or clause number — not "as per GST rules".
+      placeholder: CGST Rule 46(b) / Section 15(3)(b) / NPCI UPI Linking Specification §2.4
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Source
+      description: A link. cbic.gov.in, the Gazette notification or the NPCI specification if you have it; a reproduction on a tax-news site if that is what you have — just say which.
+    validations:
+      required: true
+  - type: input
+    id: effective
+    attributes:
+      label: Effective from
+      description: If a rate or threshold changed, when did the change take effect, and under which notification?
+      placeholder: 22 September 2025, Notification 09/2025-Central Tax (Rate)

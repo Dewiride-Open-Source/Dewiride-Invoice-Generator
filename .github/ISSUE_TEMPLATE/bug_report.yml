@@ -1,0 +1,58 @@
+name: Bug report
+description: Something the tool does wrong
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A wrong number on a generated document is treated as a serious bug, not a
+        cosmetic one — people send these to their clients. Please say which figure
+        was wrong and what it should have been.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, and what the tool did instead of what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to reproduce it
+      description: |
+        The field values matter. If it involves tax, please include the currency,
+        the rate, the supplier state and the place of supply — intra-state and
+        inter-state take different paths through the arithmetic.
+      placeholder: |
+        1. Set currency to INR, GSTIN to …
+        2. Supplier state Rajasthan, place of supply Gujarat
+        3. One line: qty 3, price 1200, discount 10%
+        4. The IGST line printed …, expected …
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where does it go wrong
+      options:
+        - The editor
+        - The live preview
+        - The downloaded PDF
+        - The preview and the PDF disagree with each other
+        - One of the /tools/ calculators
+        - Saved invoices, import or export
+        - Somewhere else
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      placeholder: Chrome 141 on Android 15
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        **Please do not attach a real invoice.** Nothing you type ever reaches us,
+        and an issue is public — reproduce it with made-up names and figures.

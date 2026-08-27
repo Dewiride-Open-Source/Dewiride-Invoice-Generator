@@ -159,6 +159,14 @@ jobs:
           # re-run it and pick its own Node version, which Next 16 may reject.
           skip_app_build: true
 
+      - name: Tell IndexNow the site changed
+        # Only on a real deploy -- a preview build lives on a different host, so
+        # submitting the production URLs from one would be a lie. Never fails
+        # the run: the site is already live by this point, and Bing being slow
+        # to hear about it is not a broken release. Google does not participate.
+        if: github.event_name == 'push' && steps.builddeploy.outcome == 'success'
+        run: npm run seo:indexnow
+
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
