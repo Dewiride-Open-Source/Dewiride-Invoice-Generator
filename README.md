@@ -102,11 +102,13 @@ an unchanged commit does not claim every page changed. `npm run check:sitemap`
 asserts it matches the export.
 
 **First-paint JS has a hard ceiling.** `node scripts/measure-first-paint.mjs
---budget=152` fails CI above 152 KB gzip (150.8 KB today). Bundle growth is
-never one bad commit, it is fifty reasonable ones. Anything large should be
-lazily imported the way the PDF engine is; raising the number should be a
-deliberate line in a diff. The same script fails if a module on the forbidden
-list reaches a first-paint chunk.
+--budget=158` fails CI above 158 KB gzip (154.2 KB today), and the same check
+runs against the heaviest landing page and a tools page, because the budget on
+its own only ever sees `index.html`. Bundle growth is never one bad commit, it
+is fifty reasonable ones. Anything large should be lazily imported the way the
+PDF engine is; raising the number should be a deliberate line in a diff, next to
+the comment in the workflow that records every previous raise. The same script
+fails if a module on the forbidden list reaches a first-paint chunk.
 
 **Colour lives in tokens.** `src/styles/globals.css` declares the palette as
 custom properties; `npm run check:contrast` parses that file and asserts every
@@ -336,3 +338,27 @@ Pushing to `main` triggers `.github/workflows/azure-static-web-apps-*.yml`,
 which typechecks, lints, checks contrast, builds, runs the tests, asserts on the
 export, then uploads. The build runs in the workflow rather than in Oryx, which
 infers its own Node version.
+
+## Contributing
+
+Bug reports and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md)
+covers the setup, the checks that block a merge, and the five constraints that
+are load-bearing rather than stylistic — chiefly that the PDF engine stays out
+of first paint, that all arithmetic lives in `src/utils/totals.ts`, and that
+nothing is ever uploaded.
+
+Corrections to the tax and legal content are particularly welcome, and have
+their own short standard in that document: cite the provision, prefer the
+primary source, and say when a rate changed.
+
+Security reports go through [SECURITY.md](SECURITY.md), which also sets out why
+the threat model here is unusual — there is no server, so most of the usual
+categories have no surface, and the ones that matter are the import boundary,
+the dependency chain and anything that could make a printed figure disagree with
+the arithmetic.
+
+Taking part means agreeing to the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Licence
+
+[MIT](LICENSE). © Dewiride Technologies Private Limited.
