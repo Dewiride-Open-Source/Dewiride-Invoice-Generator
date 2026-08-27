@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Open a private
-[security advisory](https://github.com/DewirideTechnologies/dewiride-invoice-generator/security/advisories/new)
+[security advisory](https://github.com/Dewiride-Open-Source/Dewiride-Invoice-Generator/security/advisories/new)
 on this repository, or email **support@dewiride.com** with `SECURITY` in the
 subject line. Please do not open a public issue for anything exploitable.
 

@@ -1,7 +1,7 @@
 blank_issues_enabled: true
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/DewirideTechnologies/dewiride-invoice-generator/security/advisories/new
+    url: https://github.com/Dewiride-Open-Source/Dewiride-Invoice-Generator/security/advisories/new
     about: Report privately. Please do not open a public issue for anything exploitable — see SECURITY.md for what counts as one here.
   - name: Support, or a question about your own invoices
     url: mailto:support@dewiride.com

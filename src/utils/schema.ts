@@ -36,6 +36,10 @@ export const SOCIAL_PROFILES = [
   'https://x.com/dewiridetech',
   'https://www.linkedin.com/company/dewiride-technologies',
   'https://github.com/dewiridetechnologies',
+  // Where the open-source projects live, this one included. Listed separately
+  // from the company org because they are two accounts, and sameAs is a claim
+  // about accounts rather than about repositories.
+  'https://github.com/Dewiride-Open-Source',
   'https://www.youtube.com/@Dewiride',
 ];
 
