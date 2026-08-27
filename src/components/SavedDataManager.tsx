@@ -124,6 +124,12 @@ const SavedDataManager: React.FC<SavedDataManagerProps> = ({ isOpen, onClose }) 
                 <li
                   key={entry.id}
                   className="flex items-start justify-between gap-3 rounded-card border border-border p-4"
+                  /* Every control in this row is named after saved user data
+                     ("Delete Acme Ltd"), and the analytics tracker reports the
+                     accessible name of what was clicked. Ignoring the whole row
+                     keeps that off the wire, now and for anything added here
+                     later. */
+                  data-dw-ignore
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-fg">

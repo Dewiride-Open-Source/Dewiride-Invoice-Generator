@@ -502,6 +502,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
                   disabled={onlyOneItem}
                   className={buttonClass.iconDanger}
                   data-testid={`item-${index + 1}-remove`}
+                  /* The accessible name below embeds the line-item
+                     description, and the analytics tracker reports the
+                     accessible name of every button clicked. data-dw-ignore
+                     drops this click entirely, so invoice content stays in
+                     the browser without weakening the screen-reader label. */
+                  data-dw-ignore
                 >
                   <TrashIcon className="size-4" />
                   <span className="sr-only">
