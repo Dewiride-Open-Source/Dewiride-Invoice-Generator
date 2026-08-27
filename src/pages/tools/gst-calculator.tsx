@@ -40,7 +40,7 @@ const FAQS: readonly Faq[] = [
   },
   {
     q: 'Do I still need to add compensation cess?',
-    a: 'No, not on anything issued now. Compensation cess was reduced to Nil across the specified goods from 22 September 2025 and on the remaining pan masala and tobacco entries from 1 February 2026. What replaced it on sin goods is not GST — pan masala carries a separate capacity-based cess and tobacco carries additional Central Excise Duty — and neither belongs in a CGST, SGST or IGST field on your invoice.',
+    a: 'No, not on anything issued now. Compensation cess was reduced to Nil across the specified goods from 22 September 2025, and Notification 03/2025-Compensation Cess (Rate) took the remaining pan masala and tobacco entries to Nil from 1 February 2026. What replaced it on sin goods is not GST — pan masala carries the Health Security se National Security Cess, levied per machine installed rather than on output, and tobacco carries an additional Central Excise Duty — and neither belongs in a CGST, SGST or IGST field on your invoice.',
   },
 ];
 
@@ -151,9 +151,12 @@ export default function GstCalculatorPage() {
         </table>
         <p>
           The 28% schedule held pan masala and tobacco after September 2025 and was itself omitted
-          with effect from 1 February 2026. Compensation cess is now Nil throughout; what replaced
-          it on sin goods is a separate capacity-based cess and additional excise duty, neither of
-          which is GST and neither of which belongs on the invoice as one.
+          with effect from 1 February 2026. Compensation cess is now Nil throughout &mdash;
+          Notification 03/2025-Compensation Cess (Rate) took the pan masala and tobacco entries to
+          Nil from that date. What replaced it is not GST: pan masala carries the{' '}
+          <strong>Health Security se National Security Cess</strong>, levied per machine installed
+          rather than on what is produced, and tobacco carries an additional Central Excise Duty.
+          Neither belongs in a CGST, SGST or IGST field on an invoice.
         </p>
 
         <h2>Which two heads, and why</h2>
