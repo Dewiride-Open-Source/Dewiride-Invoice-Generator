@@ -10,6 +10,15 @@ import AxeBuilder from '@axe-core/playwright';
  * listbox that could not be dismissed from the keyboard at all.
  */
 
+
+/** A 64x64 two-tone PNG, matching tests/payment.spec.ts. */
+const LOGO_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAeklEQVR42u3asQ0AIAgEQGZxOLd2FnUH' +
+    'CqIcydcfriTEmGtncicyqe4PAAAAAAAAAAAAAAAAAAAAoCHA6wtk+wEAAAAAAAAAAAAAAAAAAICOAC5C' +
+    'AAAAAAAAAAAAAAAAAAAAgP8AFyEAAAAAAAAAAAAAAAAAAADge4ADAK4KhuMH6sMAAAAASUVORK5CYII=',
+  'base64',
+);
+
 const analyse = (page: Page) =>
   new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
 
@@ -31,6 +40,21 @@ const expectNoViolations = (results: Awaited<ReturnType<typeof analyse>>) => {
 };
 
 test.beforeEach(async ({ page }) => {
+  /**
+   * Every control carries `transition-colors`, so for 150ms after the theme
+   * toggle the whole page is mid-blend -- and axe, which reads computed
+   * colours, then measures a colour that exists on no frame a user would see.
+   * It reported 1.4:1 on every input at once, which is the signature of that
+   * race rather than of a real defect.
+   *
+   * Reduced motion makes the app's own prefers-reduced-motion block collapse
+   * those transitions to 0.01ms, so the measurement is of a settled page. It
+   * is also a setting plenty of real users have on.
+   *
+   * emulateMedia rather than `test.use({ reducedMotion })`: the fixture did
+   * not reach the page here -- matchMedia still reported no-preference.
+   */
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   await page.evaluate(() => {
     localStorage.clear();
@@ -98,6 +122,55 @@ test('the delete-everything confirmation has no violations', async ({ page }) =>
   await page.getByTestId('open-history').click();
   await page.getByRole('button', { name: /^clear all$/i }).click();
   await expect(page.getByRole('dialog', { name: /delete every saved invoice/i })).toBeVisible();
+  expectNoViolations(await analyse(page));
+});
+
+test('the payment block and its QR have no violations, in both themes', async ({ page }) => {
+  // The QR is a graphic that carries information, the logo is user-supplied
+  // content in a page we do not control the colours of, and the payment fields
+  // are the first inputs in this app whose labels are not unique words.
+  await page.getByTestId('logo-input').setInputFiles({
+    name: 'logo.png',
+    mimeType: 'image/png',
+    buffer: LOGO_PNG,
+  });
+  await page.getByLabel('Your business name').fill('Acme Consulting Pvt Ltd');
+  await page.getByLabel('Account holder').fill('Acme Consulting Pvt Ltd');
+  await page.getByLabel('Bank name').fill('HDFC Bank, Koramangala');
+  await page.getByLabel('Account number').fill('50100123456789');
+  await page.getByLabel('IFSC code').fill('HDFC0001234');
+  await page.getByLabel('UPI ID').fill('acme.traders@okicici');
+
+  const tab = page.getByRole('tab', { name: 'Preview' });
+  if (await tab.isVisible()) await tab.click();
+  await expect(page.getByTestId('preview-upi-qr')).toBeVisible();
+
+  expectNoViolations(await analyse(page));
+
+  await page.getByRole('radio', { name: /dark theme/i }).click();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  expectNoViolations(await analyse(page));
+});
+
+test('the logo picker names itself, and its error, to a screen reader', async ({ page }) => {
+  const input = page.getByTestId('logo-input');
+
+  // The lint rule that checks this cannot resolve a htmlFor built from useId,
+  // so it is suppressed at the call site. This is the assertion that replaces
+  // it: the accessible name has to be real.
+  await expect(input).toHaveAccessibleName('Business logo');
+  await expect(input).toHaveAccessibleDescription(/PNG, JPEG or WebP/);
+
+  await input.setInputFiles({
+    name: 'invoice.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4'),
+  });
+
+  // The rejection has to reach the field itself, not only the live region --
+  // someone tabbing back to the input later must still be told why it is empty.
+  await expect(input).toHaveAttribute('aria-invalid', 'true');
+  await expect(input).toHaveAccessibleDescription(/Choose a PNG, JPEG or WebP image/);
   expectNoViolations(await analyse(page));
 });
 

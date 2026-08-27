@@ -8,6 +8,9 @@
  * lazily-imported chunks (notably the ~1.5 MB PDF engine) sit on disk but must
  * never appear here.
  *
+ * It also proves that specific heavy modules are absent from those scripts.
+ * See FORBIDDEN_MODULES.
+ *
  * Usage:
  *   node scripts/measure-first-paint.mjs [outDir] [pageHtml]
  *   node scripts/measure-first-paint.mjs --budget=145   # fail above 145 KB gzip
@@ -30,6 +33,32 @@ const pageHtml = join(outDir, positional[1] ?? 'index.html');
  */
 const budgetArg = process.argv.find((arg) => arg.startsWith('--budget='));
 const budgetKb = budgetArg ? Number(budgetArg.split('=')[1]) : null;
+
+/**
+ * Modules that must never reach first paint, each identified by a string
+ * literal from its own source. Literals are used because they survive
+ * minification intact, where identifiers and file paths do not.
+ *
+ * The gzip budget alone does not cover this. The PDF engine is 1.5 MB and
+ * would blow any budget the moment it regressed, but the QR encoder is ~10 KB
+ * minified -- small enough to slip under the ceiling and sit there unnoticed
+ * on every page load, for a feature most visitors never touch. This makes that
+ * specific regression loud instead of quiet.
+ */
+const FORBIDDEN_MODULES = [
+  {
+    // uqr's alphanumeric-mode charset table, on the encode path.
+    marker: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:',
+    name: 'the QR encoder (uqr)',
+    fix: 'Reach src/utils/qr through `await import(...)`, or use the useQrCode hook.',
+  },
+  {
+    // fontkit's error text, pulled in by @react-pdf via pdfkit.
+    marker: 'Unknown font format',
+    name: 'the PDF engine (fontkit)',
+    fix: 'Reach the engine through `await import("./InvoicePdfRenderer")`.',
+  },
+];
 
 if (!existsSync(pageHtml)) {
   console.error(`No export found at ${pageHtml}. Run \`npm run build\` first.`);
@@ -107,6 +136,27 @@ try {
 } catch {
   /* directory layout differs; the totals above are the signal that matters */
 }
+
+// Grep the scripts the page actually references. Checking index.html itself
+// would prove nothing: it contains <script src> URLs, not module code.
+const violations = [];
+for (const src of modernSrcs) {
+  const file = join(outDir, src.replace(/^\//, '').split('?')[0]);
+  if (!existsSync(file)) continue;
+  const code = readFileSync(file, 'utf8');
+  for (const { marker, name, fix } of FORBIDDEN_MODULES) {
+    if (code.includes(marker)) violations.push({ src, name, fix });
+  }
+}
+
+if (violations.length) {
+  console.error('');
+  for (const { src, name, fix } of violations) {
+    console.error(`::error::${name} is in ${src}, which first paint downloads. ${fix}`);
+  }
+  process.exit(1);
+}
+console.log(`  No forbidden modules in the ${modernSrcs.length} first-paint scripts.`);
 
 if (budgetKb !== null) {
   const totalKb = sum(modern, 'gzip') / 1024;

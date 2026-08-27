@@ -47,23 +47,37 @@ export default defineConfig([
   },
 
   // ---------------------------------------------------------------------
-  // Keep the PDF engine out of the first-paint bundle.
+  // Keep the heavy, rarely-needed modules out of the first-paint bundle.
   //
   // @react-pdf/renderer costs ~1.5 MB of JavaScript (yoga-layout, pdfkit,
-  // fontkit, png-js). It reaches the browser only via
-  // `await import('./InvoicePdfRenderer')` inside an event handler. A static
-  // import anywhere else silently puts all of it back on the critical path,
-  // which is exactly the regression this codebase already shipped once.
+  // fontkit, png-js). uqr, the QR encoder, costs ~27 KB. Neither is worth
+  // anything to a visitor who never downloads a PDF or enters a UPI ID, and
+  // both reach the browser only through a dynamic import. A static import
+  // anywhere else silently puts them back on the critical path, which is
+  // exactly the regression this codebase already shipped once.
   //
-  // InvoicePDF.tsx and InvoicePdfRenderer.tsx are the two allowed importers;
-  // both sit behind that dynamic boundary.
+  // The allowed importers all sit behind that boundary:
+  //   InvoicePDF.tsx, InvoicePdfRenderer.tsx  -- inside the PDF chunk
+  //   utils/qr.ts                             -- reached via `await import()`
+  //
+  // The TypeScript variant of the rule is used for allowTypeImports: a
+  // `import type { QrPath }` is erased at compile time and carries no bytes,
+  // so forbidding it would only push callers into duplicating the interface.
+  //
+  // ESLint is the fast feedback; scripts/measure-first-paint.mjs is the proof,
+  // and greps the chunks the export actually references.
   // ---------------------------------------------------------------------
   {
-    name: 'project/keep-pdf-engine-lazy',
+    name: 'project/keep-heavy-modules-lazy',
     files: ['src/**/*.{ts,tsx}'],
-    ignores: ['src/components/InvoicePDF.tsx', 'src/components/InvoicePdfRenderer.tsx'],
+    ignores: [
+      'src/components/InvoicePDF.tsx',
+      'src/components/InvoicePdfRenderer.tsx',
+      'src/utils/qr.ts',
+    ],
     rules: {
-      'no-restricted-imports': [
+      'no-restricted-imports': 'off',
+      '@typescript-eslint/no-restricted-imports': [
         'error',
         {
           paths: [
@@ -71,6 +85,13 @@ export default defineConfig([
               name: '@react-pdf/renderer',
               message:
                 'Importing this statically adds ~1.5 MB to first paint. Use `await import("./InvoicePdfRenderer")` inside an event handler instead.',
+              allowTypeImports: true,
+            },
+            {
+              name: 'uqr',
+              message:
+                'The QR encoder must stay lazy. Import src/utils/qr with `await import(...)`, or use the useQrCode hook.',
+              allowTypeImports: true,
             },
           ],
           patterns: [
@@ -78,6 +99,13 @@ export default defineConfig([
               group: ['**/InvoicePdfRenderer', '**/InvoicePDF'],
               message:
                 'InvoicePdfRenderer is the lazy boundary around the PDF engine. Reach it with `await import(...)`, never a static import.',
+              allowTypeImports: true,
+            },
+            {
+              group: ['**/utils/qr'],
+              message:
+                'utils/qr pulls in the QR encoder. Reach it with `await import(...)`, or use the useQrCode hook.',
+              allowTypeImports: true,
             },
           ],
         },

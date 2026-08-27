@@ -47,11 +47,16 @@ currency change, so neither the app build nor CI needs network access.
 
 ## Things worth knowing before you change something
 
-**The PDF engine must stay lazy.** `@react-pdf/renderer` pulls in yoga-layout,
-pdfkit and fontkit — about 1.5 MB, roughly 80% of what first paint used to
-cost. It is reachable only through `await import('./InvoicePdfRenderer')` inside
-a click handler. `eslint.config.mjs` forbids importing it anywhere else, and CI
-fails if it appears in `index.html`.
+**The PDF engine and the QR encoder must stay lazy.** `@react-pdf/renderer`
+pulls in yoga-layout, pdfkit and fontkit — about 1.5 MB, roughly 80% of what
+first paint used to cost. It is reachable only through
+`await import('./InvoicePdfRenderer')` inside a click handler. `uqr`, the QR
+encoder, is ~27 KB behind `src/utils/qr.ts` and is reached with
+`await import('../utils/qr')` (or the `useQrCode` hook); `InvoicePDF` may import
+it directly, because it already lives in the lazy chunk. `eslint.config.mjs`
+forbids importing either anywhere else, and `measure-first-paint.mjs` greps the
+chunks the exported HTML actually references for a string literal out of each —
+the gzip budget alone would never notice 10 KB of encoder.
 
 **Saved data is a store, not component state.** `src/utils/savedData.ts` is
 exposed through `useSyncExternalStore` (`src/hooks/useSavedData.ts`). Its server
@@ -85,10 +90,11 @@ an unchanged commit does not claim every page changed. `npm run check:sitemap`
 asserts it matches the export.
 
 **First-paint JS has a hard ceiling.** `node scripts/measure-first-paint.mjs
---budget=145` fails CI above 145 KB gzip (141.2 KB today). Bundle growth is
+--budget=148` fails CI above 148 KB gzip (145.3 KB today). Bundle growth is
 never one bad commit, it is fifty reasonable ones. Anything large should be
 lazily imported the way the PDF engine is; raising the number should be a
-deliberate line in a diff.
+deliberate line in a diff. The same script fails if a module on the forbidden
+list reaches a first-paint chunk.
 
 **Colour lives in tokens.** `src/styles/globals.css` declares the palette as
 custom properties; `npm run check:contrast` parses that file and asserts every
@@ -107,6 +113,32 @@ for all 153 supported currencies, and fails if any would render blank. Five
 currencies whose symbols sit in non-Latin blocks (AFN, AMD, BDT, KHR, THB) show
 their ISO code by design.
 
+**The UPI QR is built locally, and only for rupees.** `src/utils/upi.ts` turns
+an invoice into an NPCI deep link (`upi://pay?pa=…&am=…&cu=INR`), percent-encoded
+to RFC 3986 rather than to what `encodeURIComponent` happens to escape — an
+under-encoded `&` in a business name truncates the link and the payer's app then
+shows the wrong amount. It returns `null` for a non-`INR` invoice or a
+malformed VPA, and that `null` is what decides whether a QR is drawn at all. The
+preview and the PDF render the same path from the same `toQrPath`, so they
+cannot disagree. `tests/payment.spec.ts` rasterises the QR the app draws and
+decodes it, because "a square appeared" is not the assertion that matters when
+the thing carries money.
+
+**Logos are re-encoded before they are stored.** `src/utils/logo.ts` rasterises
+whatever was picked down to 512px and steps through PNG → JPEG until the data
+URI fits `MAX_LOGO_BYTES` (128 KB). The cap is load-bearing, not tidiness: the
+logo is part of `InvoiceData`, so it is re-serialised into `sessionStorage` on
+every keystroke and stored again for every saved invoice. `isStoredLogo` is the
+read boundary — only a capped PNG or JPEG data URI is ever rendered, so a
+hand-edited history export cannot smuggle in a remote URL or an SVG.
+
+**The PDF footer is pinned, not flowed.** It sits `position: 'absolute'` inside
+the page's bottom padding with `fixed`, so it repeats on every page and cannot
+be pushed onto one of its own — which is exactly what happened when the payment
+block filled the sheet. The vertical budget is tight: A4 less 42pt of padding
+leaves ~700pt, and a one-line invoice with a logo and payment details uses
+almost all of it. `tests/payment.spec.ts` asserts the page count.
+
 **Currency formatting is pinned to one locale.** An invoice has to read the same
 for sender and recipient, so it cannot follow the viewer's machine — nor the
 currency's home locale, which makes `ar-KW` emit Arabic numerals.
@@ -123,15 +155,17 @@ src/
 │   ├── fields.tsx       Labelled form primitives
 │   ├── icons.tsx        Every SVG in the app
 │   ├── InvoiceForm      The editor
+│   ├── LogoField        Logo picker; resizing lives in utils/logo
 │   ├── InvoicePreview   Live preview ("paper", stays light in dark mode)
 │   ├── InvoicePDF       @react-pdf document — a separate rendering engine
 │   └── InvoicePdfRenderer  The lazy boundary. Never import this statically.
 │   ├── SavedDataManager    Businesses/clients/items kept for autocomplete
 │   └── InvoiceHistoryManager  Saved invoices: open, copy, export, import
-├── hooks/               useSyncExternalStore bindings (saved data, history)
+├── hooks/               useSyncExternalStore bindings (saved data, history),
+│                         useQrCode (loads the encoder on demand)
 ├── types/invoice.ts     InvoiceData, normaliseInvoice(), getReadiness()
 └── utils/               savedData, invoiceHistory, schema, currency, totals,
-                         theme, analytics
+                         upi, qr, logo, theme, analytics
 ```
 
 `InvoicePDF.tsx` does not read the DOM and is unaffected by any CSS change. If

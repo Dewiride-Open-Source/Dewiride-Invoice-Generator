@@ -1,12 +1,26 @@
 import React from 'react';
-import { Document, Font, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
-import { InvoiceData } from '../types/invoice';
+import { Document, Font, Image, Page, Path, StyleSheet, Svg, Text, View } from '@react-pdf/renderer';
+import { InvoiceData, paymentRows } from '../types/invoice';
 import { formatCurrency } from '../utils/currency';
+// Both of these are heavier than they look, and both are safe here: this
+// module is only ever reached through `await import('./InvoicePdfRenderer')`,
+// so everything it pulls in lands in the lazy chunk with the PDF engine.
+import { toQrPath } from '../utils/qr';
 import { computeTotals, lineTotal } from '../utils/totals';
+import { invoiceUpiLink } from '../utils/upi';
 
 interface InvoicePDFProps {
   data: InvoiceData;
 }
+
+/**
+ * Vertical budget: A4 is 842pt, less 50pt of padding top and bottom, so 742pt
+ * of usable height. The header, addresses, one table row, the totals, the
+ * payment block and the footer come to roughly 690pt of that -- the margins
+ * below are what keeps a one-line invoice with a logo and payment details on a
+ * single sheet. tests/payment.spec.ts asserts the page count, because "it
+ * spilled onto page two" is not something a unit test would ever notice.
+ */
 
 /**
  * A Unicode font is required for currency symbols.
@@ -34,7 +48,10 @@ const styles = StyleSheet.create({
   page: {
     flexDirection: 'column',
     backgroundColor: '#ffffff',
-    padding: 50,
+    padding: 42,
+    // Reserves the band the footer is pinned into. Flow content stops here,
+    // so the footer can never collide with it or push it onto a new page.
+    paddingBottom: 66,
     fontSize: 10,
     fontFamily: 'NotoSans',
     lineHeight: 1.4,
@@ -43,7 +60,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 40,
+    marginBottom: 24,
     paddingBottom: 20,
     borderBottomWidth: 2,
     borderBottomColor: '#2563eb',
@@ -73,16 +90,16 @@ const styles = StyleSheet.create({
   addresses: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 40,
-    paddingVertical: 20,
+    marginBottom: 24,
+    paddingVertical: 10,
     gap: 20,
   },
   addressBlock: {
     width: '47%',
-    padding: 20,
+    padding: 16,
     backgroundColor: '#f8fafc',
     borderRadius: 8,
-    minHeight: 100,
+    minHeight: 78,
   },
   addressTitle: {
     fontWeight: 'bold',
@@ -111,7 +128,7 @@ const styles = StyleSheet.create({
   },
   table: {
     width: '100%',
-    marginBottom: 30,
+    marginBottom: 20,
     borderRadius: 8,
     overflow: 'hidden',
     borderWidth: 1,
@@ -167,7 +184,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   totalsContainer: {
-    marginTop: 30,
+    marginTop: 20,
     alignSelf: 'flex-end',
     width: '50%',
   },
@@ -210,9 +227,86 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#ffffff',
   },
+  logo: {
+    // Bounded rather than sized: react-pdf scales an image to its intrinsic
+    // dimensions, and a 512px logo would otherwise print 512pt wide on a
+    // 595pt-wide page. The aspect ratio is preserved from the image itself.
+    maxWidth: 150,
+    maxHeight: 50,
+    marginBottom: 12,
+    objectFit: 'contain',
+  },
+  paymentSection: {
+    marginTop: 22,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+  },
+  paymentDetails: {
+    flexGrow: 1,
+    flexShrink: 1,
+  },
+  paymentTitle: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#2563eb',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  paymentRow: {
+    flexDirection: 'row',
+    marginBottom: 3,
+  },
+  paymentLabel: {
+    width: 95,
+    fontSize: 9,
+    color: '#6b7280',
+  },
+  paymentValue: {
+    flexShrink: 1,
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    wordWrap: 'break-word',
+    hyphenationFactor: 0,
+  },
+  qrBlock: {
+    width: 96,
+    alignItems: 'center',
+  },
+  qr: {
+    width: 88,
+    height: 88,
+  },
+  qrCaption: {
+    marginTop: 5,
+    fontSize: 7,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
+  /**
+   * Pinned, not flowed.
+   *
+   * As an ordinary block the footer was the last thing on the page and the
+   * first thing to be pushed off it: a one-line invoice with a logo and a
+   * payment block ended with "Thank you for your business!" alone on page two.
+   * Taking it out of the flow means the only thing that can force a second
+   * page is actual invoice content.
+   *
+   * `fixed` repeats it on every page, which is what a document footer is for.
+   */
   footer: {
-    marginTop: 50,
-    paddingTop: 20,
+    position: 'absolute',
+    bottom: 24,
+    left: 42,
+    right: 42,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
     textAlign: 'center',
@@ -226,13 +320,27 @@ const styles = StyleSheet.create({
 
 const InvoicePDF: React.FC<InvoicePDFProps> = ({ data }) => {
   const { subtotal, taxAmount, total } = computeTotals(data);
+  const payment = paymentRows(data.payment);
+  const upiLink = invoiceUpiLink(data);
+  // Synchronous, unlike the preview's hook: the encoder is already in this
+  // chunk, and react-pdf renders in one pass with no chance to fill a hole in.
+  const qr = upiLink ? toQrPath(upiLink) : null;
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>INVOICE</Text>
+          <View>
+            {/*
+              react-pdf's Image draws into the PDF; it is not an <img> and has
+              no alt prop to give. The a11y rule is configured to treat a
+              component named Image as next/image, which this is not.
+            */}
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
+            {data.logo ? <Image src={data.logo} style={styles.logo} /> : null}
+            <Text style={styles.title}>INVOICE</Text>
+          </View>
           <View style={styles.invoiceInfo}>
             <View style={{ marginBottom: 8 }}>
               <Text style={styles.invoiceLabel}>Invoice Number</Text>
@@ -322,8 +430,38 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ data }) => {
           </View>
         </View>
 
+
+        {/* Payment details. wrap={false} keeps the block, and the QR in
+            particular, from being split across a page break. */}
+        {(payment.length > 0 || qr) && (
+          <View style={styles.paymentSection} wrap={false}>
+            {payment.length > 0 && (
+              <View style={styles.paymentDetails}>
+                <Text style={styles.paymentTitle}>Payment details</Text>
+                {payment.map(({ key, label, value }) => (
+                  <View style={styles.paymentRow} key={key}>
+                    <Text style={styles.paymentLabel}>{label}</Text>
+                    <Text style={styles.paymentValue}>{value}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {qr && (
+              <View style={styles.qrBlock}>
+                {/* The quiet zone is inside the path's module space, so the
+                    viewBox needs no extra padding. */}
+                <Svg viewBox={`0 0 ${qr.size} ${qr.size}`} style={styles.qr}>
+                  <Path d={qr.path} fill="#000000" />
+                </Svg>
+                <Text style={styles.qrCaption}>Scan to pay by UPI</Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Footer */}
-        <View style={styles.footer}>
+        <View style={styles.footer} fixed>
           <Text style={styles.footerText}>Thank you for your business!</Text>
         </View>
       </Page>

@@ -68,6 +68,9 @@ jobs:
           test -f out/og-image.png || { echo "::error::og-image.png missing";     exit 1; }
 
           # The PDF engine (~1.5 MB) must stay out of the first-paint bundle.
+          # This checks the HTML; the stronger check -- grepping the chunks the
+          # HTML references, for the PDF engine and the QR encoder both -- runs
+          # in the "Report bundle size" step below.
           if grep -q "react-pdf\|fontkit\|yoga-layout" out/index.html; then
             echo "::error::PDF engine is referenced from index.html -- the lazy import regressed"
             exit 1
@@ -103,11 +106,18 @@ jobs:
           retention-days: 7
 
       - name: Report bundle size
-        # A ceiling, not a report. 141.2 KB gzip today; the headroom is for
-        # small additions, and anything that needs more should be lazily
-        # imported the way the PDF engine is. Raising this number is a
-        # deliberate decision made in a diff, which is the point.
-        run: node scripts/measure-first-paint.mjs --budget=145
+        # A ceiling, not a report. 145.3 KB gzip today.
+        #
+        # Raised from 145 for the payment block: the logo picker and its
+        # resizing pipeline, seven payment fields, and the UPI link builder
+        # cost 4.1 KB gzip between them. The QR encoder is not in that number
+        # -- it sits in a lazy chunk, which the same script now proves.
+        #
+        # Raising this is meant to be a deliberate line in a diff, and it is
+        # not the default answer. Anything that can wait for an event handler
+        # should be imported there, the way the PDF engine and the QR encoder
+        # are.
+        run: node scripts/measure-first-paint.mjs --budget=148
 
       - name: Deploy
         id: builddeploy

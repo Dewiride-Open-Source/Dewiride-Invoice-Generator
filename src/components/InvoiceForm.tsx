@@ -1,4 +1,5 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
+import LogoField from './LogoField';
 import SavedOptionsDropdown from './SavedOptionsDropdown';
 import { NumberField, SelectField, TextAreaField, TextField, buttonClass } from './fields';
 import { PlusIcon, TrashIcon } from './icons';
@@ -7,8 +8,9 @@ import { saveFromCompany, saveItemDescription, saveToCompany } from '../utils/sa
 import { useFromCompanies, useItemDescriptions, useToCompanies } from '../hooks/useSavedData';
 import { trackCurrencyChange } from '../utils/analytics';
 import { CURRENCIES, POPULAR_CURRENCY_CODES, formatCurrency } from '../utils/currency';
-import { InvoiceData, InvoiceItem, createItem } from '../types/invoice';
+import { InvoiceData, InvoiceItem, PaymentDetails, createItem } from '../types/invoice';
 import { lineTotal } from '../utils/totals';
+import { UPI_CURRENCY, isValidUpiId } from '../utils/upi';
 
 interface InvoiceFormProps {
   data: InvoiceData;
@@ -32,10 +34,22 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
   const rowRefs = useRef(new Map<string, HTMLInputElement | null>());
   const addButtonRef = useRef<HTMLButtonElement>(null);
 
+  // The UPI error appears on blur, never while typing: `acme@` is not a
+  // mistake, it is a half-finished address, and flagging it mid-keystroke
+  // trains people to ignore the message that matters.
+  const [upiTouched, setUpiTouched] = useState(false);
+
   const update = useCallback(
     <K extends keyof InvoiceData>(field: K, value: InvoiceData[K]) => {
       if (field === 'currency' && value !== data.currency) trackCurrencyChange(value as string);
       onChange({ ...data, [field]: value });
+    },
+    [data, onChange],
+  );
+
+  const updatePayment = useCallback(
+    <K extends keyof PaymentDetails>(field: K, value: PaymentDetails[K]) => {
+      onChange({ ...data, payment: { ...data.payment, [field]: value } });
     },
     [data, onChange],
   );
@@ -98,6 +112,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
         <legend className={legendClass}>Contact information</legend>
         <div className="mt-3 grid gap-5 @2xl:grid-cols-2">
           <div className="space-y-3">
+            <LogoField value={data.logo} onChange={(logo) => update('logo', logo)} />
             {fromCompanies.length > 0 && (
               <SavedOptionsDropdown
                 label="Your saved businesses"
@@ -383,6 +398,96 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
             value={data.tax}
             onValueChange={(v) => update('tax', v)}
             data-testid="tax"
+          />
+        </div>
+      </fieldset>
+
+      {/* --- Payment --- */}
+      <fieldset className={fieldsetClass}>
+        <legend className={legendClass}>How you want to be paid</legend>
+        <p className="mt-2 text-sm text-fg-muted">
+          All optional. Whatever you fill in is printed at the bottom of the invoice, so the client
+          does not have to ask you for it.
+        </p>
+        <div className="mt-4 grid gap-4 @lg:grid-cols-2">
+          <TextField
+            label="Account holder"
+            name="account-name"
+            autoComplete="off"
+            placeholder="Name on the account"
+            value={data.payment.accountName}
+            onChange={(e) => updatePayment('accountName', e.target.value)}
+            data-testid="account-name"
+          />
+          <TextField
+            label="Bank name"
+            name="bank-name"
+            autoComplete="off"
+            placeholder="Your bank"
+            value={data.payment.bankName}
+            onChange={(e) => updatePayment('bankName', e.target.value)}
+            data-testid="bank-name"
+          />
+          <TextField
+            label="Account number"
+            name="account-number"
+            autoComplete="off"
+            inputMode="numeric"
+            placeholder="Account number"
+            value={data.payment.accountNumber}
+            onChange={(e) => updatePayment('accountNumber', e.target.value)}
+            data-testid="account-number"
+          />
+          <TextField
+            label="IFSC code"
+            name="ifsc"
+            autoComplete="off"
+            placeholder="For payments within India"
+            value={data.payment.ifsc}
+            onChange={(e) => updatePayment('ifsc', e.target.value.toUpperCase())}
+            data-testid="ifsc"
+          />
+          <TextField
+            label="SWIFT / BIC"
+            name="swift"
+            autoComplete="off"
+            placeholder="For international transfers"
+            value={data.payment.swift}
+            onChange={(e) => updatePayment('swift', e.target.value.toUpperCase())}
+            data-testid="swift"
+          />
+          <TextField
+            label="IBAN"
+            name="iban"
+            autoComplete="off"
+            placeholder="For transfers within Europe"
+            value={data.payment.iban}
+            onChange={(e) => updatePayment('iban', e.target.value.toUpperCase())}
+            data-testid="iban"
+          />
+        </div>
+
+        <div className="mt-4">
+          <TextField
+            label="UPI ID"
+            name="upi-id"
+            autoComplete="off"
+            inputMode="email"
+            placeholder="yourname@bank"
+            value={data.payment.upiId}
+            onChange={(e) => updatePayment('upiId', e.target.value)}
+            onBlur={() => setUpiTouched(true)}
+            hint={
+              data.currency === UPI_CURRENCY
+                ? 'Adds a QR code to the invoice. Your client scans it and the payee, amount and invoice number are already filled in.'
+                : `UPI settles in rupees, so the QR code is only added to ${UPI_CURRENCY} invoices.`
+            }
+            error={
+              upiTouched && data.payment.upiId.trim() && !isValidUpiId(data.payment.upiId)
+                ? 'That does not look like a UPI ID. They are written yourname@bank.'
+                : undefined
+            }
+            data-testid="upi-id"
           />
         </div>
       </fieldset>

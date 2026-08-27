@@ -1,4 +1,5 @@
 import { DEFAULT_CURRENCY, isSupportedCurrency } from '../utils/currency';
+import { isStoredLogo } from '../utils/logo';
 
 export interface InvoiceItem {
   /**
@@ -12,6 +13,30 @@ export interface InvoiceItem {
   price: number;
 }
 
+/**
+ * How the sender wants to be paid.
+ *
+ * Grouped rather than flattened onto InvoiceData because these seven fields are
+ * one decision -- they are shown together, printed together, and are together
+ * the difference between an invoice and a document that merely states a debt.
+ *
+ * All optional. An invoice with no payment block is still a valid invoice, so
+ * none of this appears in getReadiness().
+ */
+export interface PaymentDetails {
+  /** The account holder, when it differs from the trading name. */
+  accountName: string;
+  bankName: string;
+  accountNumber: string;
+  /** India. */
+  ifsc: string;
+  /** International wires. */
+  swift: string;
+  iban: string;
+  /** India. Drives the UPI QR -- see src/utils/upi.ts. */
+  upiId: string;
+}
+
 export interface InvoiceData {
   fromName: string;
   fromAddress: string;
@@ -23,7 +48,53 @@ export interface InvoiceData {
   items: InvoiceItem[];
   tax: number;
   currency: string;
+  /**
+   * A PNG or JPEG data URI, or ''. Always produced by prepareLogo, which caps
+   * the size; never a remote URL, so the PDF and the preview stay offline.
+   */
+  logo: string;
+  payment: PaymentDetails;
 }
+
+export const createEmptyPayment = (): PaymentDetails => ({
+  accountName: '',
+  bankName: '',
+  accountNumber: '',
+  ifsc: '',
+  swift: '',
+  iban: '',
+  upiId: '',
+});
+
+/** Whether there is anything to print in the payment block. */
+export const hasPaymentDetails = (payment: PaymentDetails): boolean =>
+  Object.values(payment).some((value) => value.trim().length > 0);
+
+/**
+ * Print order and labels, defined once. The preview and the PDF both render
+ * from this, so a label cannot say "IFSC" on screen and "IFSC code" on paper.
+ */
+const PAYMENT_FIELD_LABELS: readonly (readonly [keyof PaymentDetails, string])[] = [
+  ['accountName', 'Account holder'],
+  ['bankName', 'Bank'],
+  ['accountNumber', 'Account number'],
+  ['ifsc', 'IFSC'],
+  ['swift', 'SWIFT / BIC'],
+  ['iban', 'IBAN'],
+  ['upiId', 'UPI ID'],
+];
+
+export interface PaymentRow {
+  key: keyof PaymentDetails;
+  label: string;
+  value: string;
+}
+
+/** The filled-in payment fields, in print order. Blank fields are dropped. */
+export const paymentRows = (payment: PaymentDetails): PaymentRow[] =>
+  PAYMENT_FIELD_LABELS.map(([key, label]) => ({ key, label, value: payment[key].trim() })).filter(
+    (row) => row.value.length > 0,
+  );
 
 export const createItem = (): InvoiceItem => ({
   id:
@@ -53,6 +124,8 @@ export const createEmptyInvoice = (): InvoiceData => ({
   items: [createItem()],
   tax: 0,
   currency: DEFAULT_CURRENCY,
+  logo: '',
+  payment: createEmptyPayment(),
 });
 
 /**
@@ -80,6 +153,17 @@ export const normaliseInvoice = (raw: unknown): InvoiceData => {
 
   const str = (v: unknown, fallback = '') => (typeof v === 'string' ? v : fallback);
 
+  // Not merely coerced: validated. A history export is a file the user can
+  // edit, so this is the boundary where a `logo` of "https://tracker.example/x"
+  // or an SVG carrying markup has to be dropped rather than rendered.
+  const rawPayment = (
+    typeof draft.payment === 'object' && draft.payment !== null ? draft.payment : {}
+  ) as Partial<PaymentDetails>;
+  const payment = createEmptyPayment();
+  for (const key of Object.keys(payment) as (keyof PaymentDetails)[]) {
+    payment[key] = str(rawPayment[key]);
+  }
+
   return {
     fromName: str(draft.fromName),
     fromAddress: str(draft.fromAddress),
@@ -94,6 +178,8 @@ export const normaliseInvoice = (raw: unknown): InvoiceData => {
       typeof draft.currency === 'string' && isSupportedCurrency(draft.currency)
         ? draft.currency
         : base.currency,
+    logo: isStoredLogo(draft.logo) ? draft.logo : '',
+    payment,
   };
 };
 

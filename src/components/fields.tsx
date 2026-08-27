@@ -46,6 +46,13 @@ interface TextFieldProps extends Omit<React.InputHTMLAttributes<HTMLInputElement
    */
   labelClassName?: string;
   hint?: string;
+  /**
+   * An inline validation message. Shown below the hint and wired into
+   * aria-describedby with aria-invalid, rather than into a live region:
+   * callers surface these on blur, and announcing "invalid" on every keystroke
+   * of a half-typed value is worse than saying nothing.
+   */
+  error?: string;
   wrapperClassName?: string;
   ref?: React.Ref<HTMLInputElement>;
 }
@@ -55,6 +62,7 @@ export const TextField: React.FC<TextFieldProps> = ({
   hideLabel = false,
   labelClassName = '',
   hint,
+  error,
   wrapperClassName,
   className = '',
   ref,
@@ -62,6 +70,8 @@ export const TextField: React.FC<TextFieldProps> = ({
 }) => {
   const id = useId();
   const hintId = `${id}-hint`;
+  const errorId = `${id}-error`;
+  const describedBy = [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ');
   return (
     <div className={wrapperClassName}>
       <label
@@ -73,13 +83,19 @@ export const TextField: React.FC<TextFieldProps> = ({
       <input
         id={id}
         ref={ref}
-        aria-describedby={hint ? hintId : undefined}
-        className={`${CONTROL_CLASS} ${className}`}
+        aria-describedby={describedBy || undefined}
+        aria-invalid={error ? true : undefined}
+        className={`${CONTROL_CLASS} ${error ? 'border-danger' : ''} ${className}`}
         {...rest}
       />
       {hint && (
         <p id={hintId} className="mt-1 text-xs text-fg-muted">
           {hint}
+        </p>
+      )}
+      {error && (
+        <p id={errorId} className="mt-1 text-xs text-danger-text">
+          {error}
         </p>
       )}
     </div>
