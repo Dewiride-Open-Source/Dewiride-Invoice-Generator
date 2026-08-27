@@ -20,18 +20,39 @@ const CONTROL_CLASS =
 interface FieldShellProps {
   label: string;
   hint?: string;
+  /**
+   * Id given to the hint paragraph, so the control can point at it.
+   *
+   * The hint used to be rendered as a bare <p>: visible, and invisible to
+   * anyone using the form through the accessibility tree. That was survivable
+   * while every hint was a nicety, and stopped being so when one of them
+   * became "It decides CGST + SGST or IGST" on a select whose 37 options are
+   * near-identical strings.
+   */
+  hintId?: string;
   htmlFor: string;
   children: React.ReactNode;
   className?: string;
 }
 
-const FieldShell: React.FC<FieldShellProps> = ({ label, hint, htmlFor, children, className }) => (
+const FieldShell: React.FC<FieldShellProps> = ({
+  label,
+  hint,
+  hintId,
+  htmlFor,
+  children,
+  className,
+}) => (
   <div className={className}>
     <label htmlFor={htmlFor} className="mb-1.5 block text-sm font-medium text-fg">
       {label}
     </label>
     {children}
-    {hint && <p className="mt-1 text-xs text-fg-muted">{hint}</p>}
+    {hint && (
+      <p id={hintId} className="mt-1 text-xs text-fg-muted">
+        {hint}
+      </p>
+    )}
   </div>
 );
 
@@ -116,9 +137,15 @@ export const TextAreaField: React.FC<TextAreaFieldProps> = ({
   ...rest
 }) => {
   const id = useId();
+  const hintId = hint ? `${id}-hint` : undefined;
   return (
-    <FieldShell label={label} hint={hint} htmlFor={id} className={wrapperClassName}>
-      <textarea id={id} className={`${CONTROL_CLASS} resize-y ${className}`} {...rest} />
+    <FieldShell label={label} hint={hint} hintId={hintId} htmlFor={id} className={wrapperClassName}>
+      <textarea
+        id={id}
+        aria-describedby={hintId}
+        className={`${CONTROL_CLASS} resize-y ${className}`}
+        {...rest}
+      />
     </FieldShell>
   );
 };
@@ -138,11 +165,17 @@ export const SelectField: React.FC<SelectFieldProps> = ({
   ...rest
 }) => {
   const id = useId();
+  const hintId = hint ? `${id}-hint` : undefined;
   return (
-    <FieldShell label={label} hint={hint} htmlFor={id} className={wrapperClassName}>
+    <FieldShell label={label} hint={hint} hintId={hintId} htmlFor={id} className={wrapperClassName}>
       {/* A native select: the mobile OS pickers, typeahead and screen-reader
           support are better than anything a custom listbox would give here. */}
-      <select id={id} className={`${CONTROL_CLASS} ${className}`} {...rest}>
+      <select
+        id={id}
+        aria-describedby={hintId}
+        className={`${CONTROL_CLASS} ${className}`}
+        {...rest}
+      >
         {children}
       </select>
     </FieldShell>

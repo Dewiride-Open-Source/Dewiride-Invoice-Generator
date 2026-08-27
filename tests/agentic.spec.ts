@@ -47,7 +47,7 @@ test('an agent can complete and download an invoice using roles alone', async ({
 
   // The result is verifiable before committing to a download.
   await expect(page.getByRole('region', { name: /invoice preview/i }).or(page.locator('body')))
-    .toContainText('₹442,500.00');
+    .toContainText('₹4,42,500.00');
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),

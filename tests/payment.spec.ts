@@ -2,7 +2,7 @@ import { test, expect, Download, Page } from '@playwright/test';
 import { inflateSync } from 'node:zlib';
 import jsQR from 'jsqr';
 import { normaliseInvoice } from '../src/types/invoice';
-import { MAX_LOGO_BYTES, isStoredLogo } from '../src/utils/logo';
+import { MAX_IMAGE_BYTES, isStoredImage } from '../src/utils/image';
 import { buildUpiLink, isValidUpiId } from '../src/utils/upi';
 
 /**
@@ -189,24 +189,24 @@ test.describe('the UPI link', () => {
 
 test.describe('the stored logo', () => {
   test('only a capped PNG or JPEG data URI is ever accepted back', () => {
-    expect(isStoredLogo('data:image/png;base64,iVBORw0KGgo=')).toBe(true);
-    expect(isStoredLogo('data:image/jpeg;base64,/9j/4AAQSkZJRg==')).toBe(true);
+    expect(isStoredImage('data:image/png;base64,iVBORw0KGgo=')).toBe(true);
+    expect(isStoredImage('data:image/jpeg;base64,/9j/4AAQSkZJRg==')).toBe(true);
 
     // @react-pdf decodes PNG and JPEG only; a stored WebP would print nothing.
-    expect(isStoredLogo('data:image/webp;base64,UklGRg==')).toBe(false);
+    expect(isStoredImage('data:image/webp;base64,UklGRg==')).toBe(false);
     // SVG can carry markup, so it is never stored, only accepted as an upload
     // and rasterised.
-    expect(isStoredLogo('data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=')).toBe(false);
+    expect(isStoredImage('data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=')).toBe(false);
     // A remote URL would turn an offline invoice into a tracking beacon that
     // fires every time the preview renders.
-    expect(isStoredLogo('https://tracker.example/pixel.png')).toBe(false);
-    expect(isStoredLogo('javascript:alert(1)')).toBe(false);
-    expect(isStoredLogo('data:image/png;base64,<script>')).toBe(false);
-    expect(isStoredLogo('')).toBe(false);
-    expect(isStoredLogo(null)).toBe(false);
+    expect(isStoredImage('https://tracker.example/pixel.png')).toBe(false);
+    expect(isStoredImage('javascript:alert(1)')).toBe(false);
+    expect(isStoredImage('data:image/png;base64,<script>')).toBe(false);
+    expect(isStoredImage('')).toBe(false);
+    expect(isStoredImage(null)).toBe(false);
 
-    const oversized = `data:image/png;base64,${'A'.repeat(MAX_LOGO_BYTES)}`;
-    expect(isStoredLogo(oversized)).toBe(false);
+    const oversized = `data:image/png;base64,${'A'.repeat(MAX_IMAGE_BYTES)}`;
+    expect(isStoredImage(oversized)).toBe(false);
   });
 
   test('normaliseInvoice drops a logo it would not accept', () => {
@@ -415,8 +415,8 @@ test.describe('the logo', () => {
     await expect(page.getByTestId('preview-logo')).toBeVisible();
 
     const stored = await storedInvoice(page);
-    expect(isStoredLogo(stored.logo)).toBe(true);
-    expect(stored.logo.length).toBeLessThanOrEqual(MAX_LOGO_BYTES);
+    expect(isStoredImage(stored.logo)).toBe(true);
+    expect(stored.logo.length).toBeLessThanOrEqual(MAX_IMAGE_BYTES);
   });
 
   test('the alt text names the business once it is known', async ({ page }) => {
@@ -436,7 +436,7 @@ test.describe('the logo', () => {
     await input.setInputFiles({ name: 'acme-logo.png', mimeType: 'image/png', buffer: LOGO_PNG });
     await expect(page.getByTestId('logo-thumbnail')).toBeVisible();
 
-    await page.getByTestId('remove-logo').click();
+    await page.getByTestId('logo-remove').click();
 
     await expect(page.getByTestId('logo-thumbnail')).toHaveCount(0);
     await expect(page.getByTestId('preview-logo')).toHaveCount(0);
@@ -512,7 +512,7 @@ test.describe('the logo', () => {
     await expect(page.getByTestId('logo-thumbnail')).toBeVisible();
     const stored = await storedInvoice(page);
     expect(stored.logo).toMatch(/^data:image\/jpeg;base64,/);
-    expect(stored.logo.length).toBeLessThanOrEqual(MAX_LOGO_BYTES);
+    expect(stored.logo.length).toBeLessThanOrEqual(MAX_IMAGE_BYTES);
   });
 
   test('the logo and payment details survive a save and reopen', async ({ page }) => {

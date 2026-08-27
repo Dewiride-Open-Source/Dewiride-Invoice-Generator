@@ -4,6 +4,13 @@ A free invoice generator that runs entirely in the browser. Fill in a form,
 watch the preview, download a PDF. Nothing is uploaded anywhere — invoices are
 built client-side and never leave the device.
 
+On a rupee invoice it produces a tax invoice in the **Rule 46 format**: both
+GSTINs, place of supply, HSN/SAC codes, the taxable value after discount, the
+CGST + SGST or IGST split, the amount in words, and a UPI QR the client can
+scan. Whether a particular invoice is *compliant* also depends on the sender's
+registration and filings, which is a distinction the UI states rather than
+glosses over.
+
 Live at **[invoice.dewiride.com](https://invoice.dewiride.com)**.
 
 ## Stack
@@ -90,7 +97,7 @@ an unchanged commit does not claim every page changed. `npm run check:sitemap`
 asserts it matches the export.
 
 **First-paint JS has a hard ceiling.** `node scripts/measure-first-paint.mjs
---budget=148` fails CI above 148 KB gzip (145.3 KB today). Bundle growth is
+--budget=152` fails CI above 152 KB gzip (149.4 KB today). Bundle growth is
 never one bad commit, it is fifty reasonable ones. Anything large should be
 lazily imported the way the PDF engine is; raising the number should be a
 deliberate line in a diff. The same script fails if a module on the forbidden
@@ -124,13 +131,58 @@ cannot disagree. `tests/payment.spec.ts` rasterises the QR the app draws and
 decodes it, because "a square appeared" is not the assertion that matters when
 the thing carries money.
 
-**Logos are re-encoded before they are stored.** `src/utils/logo.ts` rasterises
-whatever was picked down to 512px and steps through PNG → JPEG until the data
-URI fits `MAX_LOGO_BYTES` (128 KB). The cap is load-bearing, not tidiness: the
-logo is part of `InvoiceData`, so it is re-serialised into `sessionStorage` on
-every keystroke and stored again for every saved invoice. `isStoredLogo` is the
-read boundary — only a capped PNG or JPEG data URI is ever rendered, so a
-hand-edited history export cannot smuggle in a remote URL or an SVG.
+**Uploaded images are re-encoded before they are stored.** `src/utils/image.ts`
+rasterises whatever was picked — logo or signature — down to 512px and steps
+through PNG → JPEG until the data URI fits `MAX_IMAGE_BYTES` (128 KB). The cap
+is load-bearing, not tidiness: both images are part of `InvoiceData`, so they
+are re-serialised into `sessionStorage` on every keystroke and stored again for
+every saved invoice. `isStoredImage` is the read boundary — only a capped PNG or
+JPEG data URI is ever rendered, so a hand-edited history export cannot smuggle
+in a remote URL or an SVG.
+
+**All invoice arithmetic lives in `src/utils/totals.ts`, and rounds at every
+boundary.** Each printed figure is rounded to the currency's own minor unit
+before it is summed, so the column of line amounts adds up to the subtotal on
+the same page. Summing at full precision and rounding only for display is what
+makes a printed invoice fail its own arithmetic by a paisa. CGST and SGST are
+each computed at half the rate against the taxable value rather than by halving
+one total, which is both what the statute describes and what guarantees the two
+printed halves are equal and sum to the tax line.
+
+Two rules the arithmetic encodes: a **discount comes off before tax**, which GST
+requires; **shipping goes on after it**, which is a simplification. Where
+freight forms part of a composite supply it is taxable at the rate of the
+principal supply — the field's own hint says to enter it as a line item in that
+case.
+
+**Which tax an invoice carries is decided in `src/utils/gst.ts`.** Same state →
+CGST + SGST at half the rate each; different states → IGST at the full rate;
+anything that is not a rupee invoice with a GSTIN → a single plain `Tax` line,
+exactly as before. GSTINs are validated by their **checksum**, not just their
+shape: a transposed pair of digits passes any regex, is invisible to a human
+proof-reader, and surfaces months later as the client's denied input credit.
+Entering a GSTIN also fills in the state it already declares.
+
+**The amount in words uses two numbering systems.** Rupees are spelled in lakhs
+and crores with paise written out; everything else gets the ISO code, short-scale
+words and the minor unit as a fraction. The code rather than the currency's name
+because English does not pluralise them predictably — it is Dollars and Euros
+but Yen, Yuan, Won, Baht and Rand, and a trailing "s" prints "Japanese Yens" on
+someone's invoice. For the same reason rupee amounts are formatted `en-IN`
+(₹10,33,640.00) while every other currency is `en-US`: the words already say
+"Ten Lakh", and grouping the digits in threes made the document contradict
+itself.
+
+**Three things in the PDF must never split across a page break**, and each broke
+before it was guarded: the **totals** (`wrap={false}` — subtotal and discount
+were landing on one sheet with the tax and the total on the next), the **amount
+in words** (grouped with the totals — it was arriving alone at the top of a page,
+restating a total that was not there), and each **line-item row**. The **table
+header** carries `fixed`, so it repeats on continuation pages instead of opening
+page two with six unlabelled columns of numbers. `tests/gst.spec.ts` asserts all
+of this against the PDF bytes — the text cannot be searched, because the
+embedded font is subset and strings are re-encoded to glyph indices, so the
+assertions match the shapes that are drawn.
 
 **The PDF footer is pinned, not flowed.** It sits `position: 'absolute'` inside
 the page's bottom padding with `fixed`, so it repeats on every page and cannot
@@ -139,9 +191,10 @@ block filled the sheet. The vertical budget is tight: A4 less 42pt of padding
 leaves ~700pt, and a one-line invoice with a logo and payment details uses
 almost all of it. `tests/payment.spec.ts` asserts the page count.
 
-**Currency formatting is pinned to one locale.** An invoice has to read the same
-for sender and recipient, so it cannot follow the viewer's machine — nor the
-currency's home locale, which makes `ar-KW` emit Arabic numerals.
+**Currency formatting is pinned per currency, never per viewer.** An invoice has
+to read the same for sender and recipient, so it cannot follow the viewer's
+machine — nor the currency's home locale, which makes `ar-KW` emit Arabic
+numerals. Rupees use `en-IN` for Indian grouping; everything else uses `en-US`.
 
 **`distDir` must stay unset.** Next 16 writes dev output, a lockfile and build
 manifests into `distDir`; pointing it at `out/` would publish them to the CDN.
@@ -155,7 +208,7 @@ src/
 │   ├── fields.tsx       Labelled form primitives
 │   ├── icons.tsx        Every SVG in the app
 │   ├── InvoiceForm      The editor
-│   ├── LogoField        Logo picker; resizing lives in utils/logo
+│   ├── ImageField       Logo and signature picker; resizing lives in utils/image
 │   ├── InvoicePreview   Live preview ("paper", stays light in dark mode)
 │   ├── InvoicePDF       @react-pdf document — a separate rendering engine
 │   └── InvoicePdfRenderer  The lazy boundary. Never import this statically.
@@ -165,7 +218,7 @@ src/
 │                         useQrCode (loads the encoder on demand)
 ├── types/invoice.ts     InvoiceData, normaliseInvoice(), getReadiness()
 └── utils/               savedData, invoiceHistory, schema, currency, totals,
-                         upi, qr, logo, theme, analytics
+                         gst, amountInWords, upi, qr, image, theme, analytics
 ```
 
 `InvoicePDF.tsx` does not read the DOM and is unaffected by any CSS change. If
@@ -173,10 +226,18 @@ you restyle the preview, restyle the PDF to match, or they will drift.
 
 ## Accessibility
 
-The suite runs axe over the home page in both themes, the legal pages, and the
-dialog and combobox while open — the states a static crawl never reaches. It
-also covers keyboard-only operation, the dialog focus trap, the combobox
-keyboard map, the heading outline and live-region announcements.
+The suite runs axe over the home page in both themes, the legal pages, the
+dialog and combobox while open, and a filled-in tax invoice — the states a
+static crawl never reaches. It also covers keyboard-only operation, the dialog
+focus trap, the combobox keyboard map, the heading outline and live-region
+announcements.
+
+Two things the linters cannot see and the tests assert instead: the file inputs'
+accessible names, because `jsx-a11y` cannot follow a `htmlFor` built from
+`useId`; and that every field hint is actually wired into `aria-describedby`,
+which `SelectField` and `TextAreaField` did not do until a hint became
+load-bearing ("It decides CGST + SGST or IGST", on a select whose 37 options are
+near-identical strings).
 
 `tests/agentic.spec.ts` drives the page using only roles and labels, with no CSS
 selectors, and completes and downloads an invoice that way. It is the check that

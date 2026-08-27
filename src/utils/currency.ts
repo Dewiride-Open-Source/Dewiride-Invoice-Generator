@@ -33,8 +33,19 @@ export interface Currency {
  * en-US keeps digits and grouping constant while Intl still applies each
  * currency's own minor-unit rules -- JPY prints no decimals, KWD prints three --
  * and falls back to the ISO code where a currency has no Latin symbol.
+ *
+ * Rupees are the one exception, and they earn it. India does not group in
+ * threes: 1033640 is written 10,33,640 and read "ten lakh thirty-three
+ * thousand". The amount in words on a rupee invoice already spells it that way
+ * (see utils/amountInWords.ts), so formatting the digits en-US produced a
+ * document that contradicted itself -- "Twelve Lakh" beside "1,206,998.40".
+ *
+ * en-IN is picked per currency, never per viewer, so the output is still the
+ * same on the sender's machine and the recipient's. It is not applied to
+ * anything else: en-IN groups dollars in the Indian style too, which would be
+ * wrong on a US invoice.
  */
-const FORMAT_LOCALE = 'en-US';
+const localeFor = (code: string): string => (code === 'INR' ? 'en-IN' : 'en-US');
 
 /**
  * ISO 4217 currencies in active circulation. Symbols are not stored: Intl
@@ -243,7 +254,7 @@ const getFormatter = (code: string): Intl.NumberFormat => {
 
   let formatter: Intl.NumberFormat;
   try {
-    formatter = new Intl.NumberFormat(FORMAT_LOCALE, {
+    formatter = new Intl.NumberFormat(localeFor(code), {
       style: 'currency',
       currency: code,
       currencyDisplay: CODE_ONLY_CURRENCIES.has(code) ? 'code' : 'narrowSymbol',
@@ -251,7 +262,7 @@ const getFormatter = (code: string): Intl.NumberFormat => {
   } catch {
     // An unknown code, or an engine without narrowSymbol support. Falling back
     // to the code keeps the number readable instead of throwing mid-render.
-    formatter = new Intl.NumberFormat(FORMAT_LOCALE, {
+    formatter = new Intl.NumberFormat(localeFor(code), {
       style: 'currency',
       currency: isSupportedCurrency(code) ? code : 'USD',
       currencyDisplay: 'code',
@@ -284,4 +295,42 @@ export const getCurrencySymbol = (currency: string): string => {
   } catch {
     return currency;
   }
+};
+
+/**
+ * How many decimal places this currency actually has: 2 for INR and USD, 0 for
+ * JPY, 3 for KWD. Intl already knows, so this asks it rather than assuming two.
+ */
+const fractionDigitCache = new Map<string, number>();
+
+export const currencyFractionDigits = (code: string): number => {
+  const cached = fractionDigitCache.get(code);
+  if (cached !== undefined) return cached;
+  let digits = 2;
+  try {
+    digits = getFormatter(code).resolvedOptions().maximumFractionDigits ?? 2;
+  } catch {
+    // Keep the two-decimal default.
+  }
+  fractionDigitCache.set(code, digits);
+  return digits;
+};
+
+/**
+ * Rounds to the currency's smallest real unit.
+ *
+ * Load-bearing on a tax invoice, not cosmetic. Without it the figures printed
+ * in the line-item column are rounded for display while the subtotal sums the
+ * unrounded ones, so a column of prices can visibly fail to add up -- and a
+ * CGST/SGST split computed from unrounded halves can miss the total by a
+ * paisa, which is exactly the kind of discrepancy a tax return is checked for.
+ *
+ * The epsilon nudge is not superstition: 1.005 * 100 is 100.49999999999999 in
+ * binary floating point, so Math.round alone rounds a half down.
+ */
+export const roundMoney = (amount: number, currency: string): number => {
+  if (!Number.isFinite(amount)) return 0;
+  const factor = 10 ** currencyFractionDigits(currency);
+  const scaled = amount * factor;
+  return Math.round(scaled + Math.sign(scaled) * Math.abs(scaled) * Number.EPSILON) / factor;
 };

@@ -108,7 +108,7 @@ test.describe('saved invoices', () => {
     await expect(row).toHaveCount(1);
     await expect(row).toContainText('INV-2026-042');
     await expect(row).toContainText('Globex Corporation');
-    await expect(row).toContainText('₹100,000.00');
+    await expect(row).toContainText('₹1,00,000.00');
   });
 
   test('a saved invoice survives a reload and reopens into the form', async ({ page }) => {

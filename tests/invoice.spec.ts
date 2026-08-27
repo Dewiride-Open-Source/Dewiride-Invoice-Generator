@@ -37,7 +37,7 @@ test('the invoice date defaults to today', async ({ page }) => {
 test('the preview totals update as the form is filled', async ({ page }) => {
   await fillInvoice(page);
   // 3 x 125000 = 375000, +18% tax = 442500
-  await expect(page.getByTestId('preview-total')).toHaveText('₹442,500.00');
+  await expect(page.getByTestId('preview-total')).toHaveText('₹4,42,500.00');
 });
 
 test('every currency formats with its own symbol and minor units', async ({ page }) => {

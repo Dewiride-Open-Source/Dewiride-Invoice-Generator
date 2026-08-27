@@ -174,6 +174,62 @@ test('the logo picker names itself, and its error, to a screen reader', async ({
   expectNoViolations(await analyse(page));
 });
 
+test('the GST fields and the tax invoice have no violations, in both themes', async ({ page }) => {
+  // Two state pickers whose options are near-identical strings, a GSTIN field
+  // that goes aria-invalid, a scrollable table, and a second image picker --
+  // all of it new, and none of it covered by a crawl of the default page.
+  await page.getByLabel('Your business name').fill('Acme Consulting Pvt Ltd');
+  await page.getByLabel('Client name').fill('Globex Manufacturing Pvt Ltd');
+  await page.getByLabel('Your GSTIN').fill('29AAPFU0939F1ZR');
+  await page.getByLabel('Client GSTIN').fill('27BBBCD1234E1Z5');
+  await page.getByTestId('place-of-supply').selectOption('27');
+  await page.getByLabel('Description', { exact: true }).fill('Platform engineering retainer');
+  await page.getByLabel('HSN / SAC').fill('998314');
+  await page.getByLabel('Discount (%)').fill('10');
+  await page.getByLabel('Unit price').fill('100000');
+  await page.getByLabel('Tax rate (%)').fill('18');
+  await page.getByLabel('Shipping or freight').fill('750');
+  await page.getByLabel('Payment terms').fill('Net 30');
+  await page.getByLabel('Notes').fill('Please quote the invoice number with your payment.');
+  await page.getByTestId('signature-input').setInputFiles({
+    name: 'signature.png',
+    mimeType: 'image/png',
+    buffer: LOGO_PNG,
+  });
+
+  const tab = page.getByRole('tab', { name: 'Preview' });
+  if (await tab.isVisible()) await tab.click();
+  await expect(page.getByTestId('preview-heading')).toHaveText('TAX INVOICE');
+
+  expectNoViolations(await analyse(page));
+
+  await page.getByRole('radio', { name: /dark theme/i }).click();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  expectNoViolations(await analyse(page));
+});
+
+test('the state pickers and the signature name themselves distinctly', async ({ page }) => {
+  // Two selects offering the same 37 options are exactly the case where a
+  // shared or missing label leaves someone unable to tell which is which.
+  await expect(page.getByTestId('supplier-state')).toHaveAccessibleName('You supply from');
+  await expect(page.getByTestId('place-of-supply')).toHaveAccessibleName('Place of supply');
+  await expect(page.getByTestId('place-of-supply')).toHaveAccessibleDescription(
+    /It decides CGST \+ SGST or IGST/,
+  );
+
+  // Same suppressed lint rule as the logo picker; same real assertion instead.
+  await expect(page.getByTestId('signature-input')).toHaveAccessibleName('Signature');
+  await expect(page.getByTestId('signature-input')).toHaveAccessibleDescription(
+    /authorised signatory/i,
+  );
+
+  const gstin = page.getByLabel('Your GSTIN');
+  await gstin.fill('29AAPFU0993F1ZR');
+  await gstin.blur();
+  await expect(gstin).toHaveAttribute('aria-invalid', 'true');
+  await expect(gstin).toHaveAccessibleDescription(/does not check out/);
+});
+
 test('the about page has no violations', async ({ page }) => {
   await page.goto('/about/');
   expectNoViolations(await analyse(page));

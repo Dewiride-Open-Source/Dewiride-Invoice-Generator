@@ -106,18 +106,22 @@ jobs:
           retention-days: 7
 
       - name: Report bundle size
-        # A ceiling, not a report. 145.3 KB gzip today.
+        # A ceiling, not a report. 149.4 KB gzip today.
         #
-        # Raised from 145 for the payment block: the logo picker and its
-        # resizing pipeline, seven payment fields, and the UPI link builder
-        # cost 4.1 KB gzip between them. The QR encoder is not in that number
-        # -- it sits in a lazy chunk, which the same script now proves.
+        # History, so the trend is visible rather than just the number:
+        #   145    baseline
+        #   148    payment block -- logo picker, seven payment fields, UPI link
+        #   152    GST -- 37 state codes, the GSTIN checksum, amount-in-words in
+        #          two numbering systems, and eight more form fields, for 4.1 KB
+        #
+        # Neither raise included the heavy part: the PDF engine and the QR
+        # encoder are in lazy chunks, which the same script proves on every run.
         #
         # Raising this is meant to be a deliberate line in a diff, and it is
         # not the default answer. Anything that can wait for an event handler
-        # should be imported there, the way the PDF engine and the QR encoder
-        # are.
-        run: node scripts/measure-first-paint.mjs --budget=148
+        # should be imported there. The PDF templates coming next belong
+        # entirely inside the lazy chunk and must move this number by zero.
+        run: node scripts/measure-first-paint.mjs --budget=152
 
       - name: Deploy
         id: builddeploy

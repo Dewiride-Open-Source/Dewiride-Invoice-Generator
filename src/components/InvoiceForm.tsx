@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import LogoField from './LogoField';
+import ImageField from './ImageField';
 import SavedOptionsDropdown from './SavedOptionsDropdown';
 import { NumberField, SelectField, TextAreaField, TextField, buttonClass } from './fields';
 import { PlusIcon, TrashIcon } from './icons';
@@ -9,7 +9,14 @@ import { useFromCompanies, useItemDescriptions, useToCompanies } from '../hooks/
 import { trackCurrencyChange } from '../utils/analytics';
 import { CURRENCIES, POPULAR_CURRENCY_CODES, formatCurrency } from '../utils/currency';
 import { InvoiceData, InvoiceItem, PaymentDetails, createItem } from '../types/invoice';
-import { lineTotal } from '../utils/totals';
+import { formatRate, lineTotal } from '../utils/totals';
+import {
+  INDIAN_STATES,
+  gstinStateCode,
+  isGstCurrency,
+  isValidGstin,
+  taxTreatment,
+} from '../utils/gst';
 import { UPI_CURRENCY, isValidUpiId } from '../utils/upi';
 
 interface InvoiceFormProps {
@@ -38,6 +45,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
   // mistake, it is a half-finished address, and flagging it mid-keystroke
   // trains people to ignore the message that matters.
   const [upiTouched, setUpiTouched] = useState(false);
+  // Same rule for the GSTINs: fifteen characters take a moment to type, and
+  // flagging the first fourteen of them as wrong is noise.
+  const [gstinTouched, setGstinTouched] = useState({ supplier: false, buyer: false });
 
   const update = useCallback(
     <K extends keyof InvoiceData>(field: K, value: InvoiceData[K]) => {
@@ -103,7 +113,50 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
     announce(`Applied saved item ${description}.`);
   };
 
+  /**
+   * Fills in the state the GSTIN already declares.
+   *
+   * The first two digits of a GSTIN *are* the state code, so asking for it
+   * again is asking the user to repeat themselves -- and to be the one who
+   * notices when the two disagree. Only ever fills a blank: a state the user
+   * chose deliberately is never overwritten.
+   */
+  const applySupplierGstin = useCallback(
+    (value: string) => {
+      const gstin = value.toUpperCase();
+      const declared = gstinStateCode(gstin);
+      onChange({
+        ...data,
+        supplierGstin: gstin,
+        supplierState: !data.supplierState && declared ? declared : data.supplierState,
+      });
+    },
+    [data, onChange],
+  );
+
   const onlyOneItem = data.items.length === 1;
+  const gstMode = isGstCurrency(data.currency);
+  const treatment = taxTreatment(data);
+
+  const gstinError = (value: string, touched: boolean) =>
+    touched && value.trim() && !isValidGstin(value)
+      ? 'That GSTIN does not check out. It is 15 characters, and the last one is a checksum.'
+      : undefined;
+
+  /** Says, in words, which tax the numbers above will actually produce. */
+  const treatmentNote = () => {
+    if (!gstMode) return null;
+    if (!data.supplierGstin.trim()) {
+      return 'Add your GSTIN above and this becomes a tax invoice, with the CGST/SGST or IGST split worked out for you.';
+    }
+    if (treatment === 'cgst-sgst') {
+      return `Same state, so this is an intra-state supply: CGST ${formatRate(data.tax / 2)}% + SGST ${formatRate(data.tax / 2)}%.`;
+    }
+    if (treatment === 'igst') {
+      return `Different states, so this is an inter-state supply: IGST ${formatRate(data.tax)}%.`;
+    }
+    return 'Choose both states and the tax will be split into CGST + SGST or IGST automatically.';
+  };
 
   return (
     <form className="@container space-y-5" noValidate aria-label="Invoice details">
@@ -112,7 +165,14 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
         <legend className={legendClass}>Contact information</legend>
         <div className="mt-3 grid gap-5 @2xl:grid-cols-2">
           <div className="space-y-3">
-            <LogoField value={data.logo} onChange={(logo) => update('logo', logo)} />
+            <ImageField
+              label="Business logo"
+              name="logo"
+              testId="logo"
+              alt="Your business logo, as it will appear on the invoice"
+              value={data.logo}
+              onChange={(logo) => update('logo', logo)}
+            />
             {fromCompanies.length > 0 && (
               <SavedOptionsDropdown
                 label="Your saved businesses"
@@ -146,6 +206,23 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
               onChange={(e) => update('fromAddress', e.target.value)}
               data-testid="from-address"
             />
+            {/* GST is levied in rupees, so these only exist on a rupee
+                invoice. A freelancer billing in dollars never sees them. */}
+            {gstMode && (
+              <TextField
+                label="Your GSTIN"
+                name="supplier-gstin"
+                autoComplete="off"
+                maxLength={15}
+                placeholder="29AAAAA0000A1Z5"
+                value={data.supplierGstin}
+                onChange={(e) => applySupplierGstin(e.target.value)}
+                onBlur={() => setGstinTouched((t) => ({ ...t, supplier: true }))}
+                hint="Optional. Adding it makes this a tax invoice and fills in your state."
+                error={gstinError(data.supplierGstin, gstinTouched.supplier)}
+                data-testid="supplier-gstin"
+              />
+            )}
           </div>
 
           <div className="space-y-3">
@@ -182,6 +259,21 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
               onChange={(e) => update('toAddress', e.target.value)}
               data-testid="to-address"
             />
+            {gstMode && (
+              <TextField
+                label="Client GSTIN"
+                name="buyer-gstin"
+                autoComplete="off"
+                maxLength={15}
+                placeholder="27BBBBB1111B1Z6"
+                value={data.buyerGstin}
+                onChange={(e) => update('buyerGstin', e.target.value.toUpperCase())}
+                onBlur={() => setGstinTouched((t) => ({ ...t, buyer: true }))}
+                hint="Optional. Your client needs it to claim input credit."
+                error={gstinError(data.buyerGstin, gstinTouched.buyer)}
+                data-testid="buyer-gstin"
+              />
+            )}
           </div>
         </div>
       </fieldset>
@@ -306,6 +398,43 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
                   }
                   data-testid={`item-${index + 1}-description`}
                 />
+
+                {/*
+                  Under the description rather than as their own columns.
+
+                  A GST line genuinely has six fields, but seven tracks in the
+                  wide grid leaves the description about 40px wide in a column
+                  this narrow -- and raising the breakpoint far enough to fit
+                  them would mean the wide layout never engaged at all. These
+                  two keep their visible labels for the same reason: the shared
+                  column header does not name them, so hiding the labels would
+                  leave a pair of anonymous boxes.
+                */}
+                <div className="grid grid-cols-2 gap-2">
+                  {gstMode && (
+                    <TextField
+                      label="HSN / SAC"
+                      name={`item-${index + 1}-hsn`}
+                      autoComplete="off"
+                      maxLength={8}
+                      inputMode="numeric"
+                      placeholder="998314"
+                      value={item.hsnSac}
+                      onChange={(e) => updateItem(item.id, 'hsnSac', e.target.value)}
+                      data-testid={`item-${index + 1}-hsn`}
+                    />
+                  )}
+                  <NumberField
+                    label="Discount (%)"
+                    name={`item-${index + 1}-discount`}
+                    min={0}
+                    max={100}
+                    step={0.01}
+                    value={item.discount}
+                    onValueChange={(v) => updateItem(item.id, 'discount', v)}
+                    data-testid={`item-${index + 1}-discount`}
+                  />
+                </div>
               </div>
 
               <div className="mt-3 grid grid-cols-2 gap-3 @xl:contents @xl:mt-0">
@@ -334,7 +463,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
               <p className="mt-3 flex items-baseline justify-between border-t border-border pt-3 text-sm @xl:mt-0 @xl:block @xl:border-0 @xl:pt-2.5 @xl:text-right">
                 <span className="text-fg-muted @xl:sr-only">Line total for item {index + 1}</span>
                 <span className="font-semibold tabular text-fg" data-testid={`item-${index + 1}-total`}>
-                  {formatCurrency(lineTotal(item), data.currency)}
+                  {formatCurrency(lineTotal(item, data.currency), data.currency)}
                 </span>
               </p>
 
@@ -399,6 +528,73 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
             onValueChange={(v) => update('tax', v)}
             data-testid="tax"
           />
+        </div>
+
+        {gstMode && (
+          <>
+            <div className="mt-4 grid gap-4 @lg:grid-cols-2">
+              <SelectField
+                label="You supply from"
+                name="supplier-state"
+                value={data.supplierState}
+                onChange={(e) => update('supplierState', e.target.value)}
+                data-testid="supplier-state"
+              >
+                <option value="">Choose a state</option>
+                {INDIAN_STATES.map(({ code, name }) => (
+                  <option key={code} value={code}>
+                    {name} ({code})
+                  </option>
+                ))}
+              </SelectField>
+              <SelectField
+                label="Place of supply"
+                name="place-of-supply"
+                value={data.placeOfSupply}
+                onChange={(e) => update('placeOfSupply', e.target.value)}
+                hint="Usually where your client is. It decides CGST + SGST or IGST."
+                data-testid="place-of-supply"
+              >
+                <option value="">Choose a state</option>
+                {INDIAN_STATES.map(({ code, name }) => (
+                  <option key={code} value={code}>
+                    {name} ({code})
+                  </option>
+                ))}
+              </SelectField>
+            </div>
+            <p className="mt-3 rounded-lg bg-surface px-3 py-2 text-xs text-fg-muted" data-testid="tax-treatment">
+              {treatmentNote()}
+            </p>
+            {/*
+              Says what the tool does, not what the user's tax position is.
+              "GST compliant" would be a claim about their registration and
+              their filings, neither of which this can see.
+            */}
+            {data.supplierGstin.trim() && (
+              <p className="mt-2 text-xs text-fg-muted" data-testid="gst-disclaimer">
+                This produces a tax invoice in the Rule 46 format. Whether any particular invoice
+                is compliant also depends on your registration and your filings — check anything
+                unusual with your accountant.
+              </p>
+            )}
+          </>
+        )}
+
+        <div className="mt-4">
+          <NumberField
+            label="Shipping or freight"
+            name="shipping"
+            min={0}
+            step={0.01}
+            value={data.shipping}
+            onValueChange={(v) => update('shipping', v)}
+            wrapperClassName="@lg:w-1/2 @lg:pr-2"
+            data-testid="shipping"
+          />
+          <p className="mt-1 text-xs text-fg-muted">
+            Added after tax. If you charge GST on freight, put it in as a line item instead.
+          </p>
         </div>
       </fieldset>
 
@@ -488,6 +684,43 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ data, onChange }) => {
                 : undefined
             }
             data-testid="upi-id"
+          />
+        </div>
+      </fieldset>
+
+      {/* --- Closing --- */}
+      <fieldset className={fieldsetClass}>
+        <legend className={legendClass}>Notes, terms and signature</legend>
+        <div className="mt-3 space-y-4">
+          <TextField
+            label="Payment terms"
+            name="payment-terms"
+            autoComplete="off"
+            maxLength={120}
+            placeholder="Net 30 — due within 30 days of the invoice date"
+            value={data.paymentTerms}
+            onChange={(e) => update('paymentTerms', e.target.value)}
+            data-testid="payment-terms"
+          />
+          <TextAreaField
+            label="Notes"
+            name="notes"
+            rows={3}
+            maxLength={600}
+            placeholder="Anything the client should know — a PO number, a thank you, late-payment terms."
+            value={data.notes}
+            onChange={(e) => update('notes', e.target.value)}
+            data-testid="notes"
+          />
+          <ImageField
+            label="Signature"
+            name="signature"
+            testId="signature"
+            alt="Your signature, as it will appear on the invoice"
+            hint="Printed above your name as the authorised signatory."
+            thumbnailClassName="max-h-12 max-w-40"
+            value={data.signature}
+            onChange={(signature) => update('signature', signature)}
           />
         </div>
       </fieldset>

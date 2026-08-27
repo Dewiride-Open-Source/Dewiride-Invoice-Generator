@@ -2,15 +2,28 @@ import React, { useCallback, useId, useRef, useState } from 'react';
 import { buttonClass } from './fields';
 import { TrashIcon } from './icons';
 import { useAnnounce } from './a11y/LiveRegion';
-import { LOGO_ACCEPT_ATTRIBUTE, LogoError, prepareLogo } from '../utils/logo';
+import { IMAGE_ACCEPT_ATTRIBUTE, ImageError, prepareImage } from '../utils/image';
 
-interface LogoFieldProps {
+interface ImageFieldProps {
+  /** Visible label, and the stem of every announcement: "Business logo added." */
+  label: string;
   value: string;
-  onChange: (logo: string) => void;
+  onChange: (image: string) => void;
+  /** Form control name, for autofill and for agents driving the page. */
+  name: string;
+  /** What the picked image is, described for someone who cannot see it. */
+  alt: string;
+  /** Prefixes -input, -thumbnail, -remove and -error. */
+  testId: string;
+  /** Sentence appended to the format note. */
+  hint?: string;
+  /** Tailwind classes bounding the thumbnail, so a wide signature is not cropped. */
+  thumbnailClassName?: string;
 }
 
 /**
- * The logo picker.
+ * A picker for the two images an invoice can carry: the business logo and the
+ * signature.
  *
  * A plain <input type="file"> with a real <label>, styled through Tailwind's
  * `file:` variants rather than hidden behind a button. The hidden-input pattern
@@ -18,10 +31,19 @@ interface LogoFieldProps {
  * other buttons; here the control is the only thing in its block, so the native
  * input keeps its own label, keyboard behaviour and mobile picker.
  *
- * Resizing happens in utils/logo.ts. This component owns only the state that
+ * Resizing happens in utils/image.ts. This component owns only the state that
  * cannot live there: which file is being processed, and what went wrong.
  */
-const LogoField: React.FC<LogoFieldProps> = ({ value, onChange }) => {
+const ImageField: React.FC<ImageFieldProps> = ({
+  label,
+  value,
+  onChange,
+  name,
+  alt,
+  testId,
+  hint,
+  thumbnailClassName = 'max-h-12 max-w-32',
+}) => {
   const inputId = useId();
   const errorId = `${inputId}-error`;
   const hintId = `${inputId}-hint`;
@@ -41,12 +63,12 @@ const LogoField: React.FC<LogoFieldProps> = ({ value, onChange }) => {
       setError('');
       setBusy(true);
       try {
-        const logo = await prepareLogo(file);
-        onChange(logo);
-        announce('Logo added.');
+        const image = await prepareImage(file);
+        onChange(image);
+        announce(`${label} added.`);
       } catch (cause) {
         const message =
-          cause instanceof LogoError
+          cause instanceof ImageError
             ? cause.message
             : 'That image could not be used. Try a different file.';
         setError(message);
@@ -55,41 +77,44 @@ const LogoField: React.FC<LogoFieldProps> = ({ value, onChange }) => {
         setBusy(false);
       }
     },
-    [announce, onChange],
+    [announce, label, onChange],
   );
 
   const remove = useCallback(() => {
     onChange('');
     setError('');
-    announce('Logo removed.');
+    announce(`${label} removed.`);
     input.current?.focus();
-  }, [announce, onChange]);
+  }, [announce, label, onChange]);
 
   return (
     <div>
       <label htmlFor={inputId} className="mb-1.5 block text-sm font-medium text-fg">
-        Business logo
+        {label}
       </label>
 
       {value && (
         <div className="mb-2 flex items-center gap-3 rounded-lg border border-border bg-surface p-2">
           {/*
-            A local data URI produced by prepareLogo, capped at 128 KB and
+            A local data URI produced by prepareImage, capped at 128 KB and
             already at its display size -- next/image would add a wrapper and a
             loader to re-serve bytes that never touch the network.
+
+            bg-white because a signature is usually black on transparent, which
+            is invisible against the dark-theme surface behind it.
           */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={value}
-            alt="Your business logo, as it will appear on the invoice"
-            className="max-h-12 max-w-32 object-contain"
-            data-testid="logo-thumbnail"
+            alt={alt}
+            className={`rounded bg-white object-contain ${thumbnailClassName}`}
+            data-testid={`${testId}-thumbnail`}
           />
           <button
             type="button"
             onClick={remove}
             className={`${buttonClass.dangerGhost} ml-auto px-3 py-2`}
-            data-testid="remove-logo"
+            data-testid={`${testId}-remove`}
           >
             <TrashIcon className="size-4" />
             Remove
@@ -109,8 +134,8 @@ const LogoField: React.FC<LogoFieldProps> = ({ value, onChange }) => {
         ref={input}
         id={inputId}
         type="file"
-        name="logo"
-        accept={LOGO_ACCEPT_ATTRIBUTE}
+        name={name}
+        accept={IMAGE_ACCEPT_ATTRIBUTE}
         onChange={handleFile}
         disabled={busy}
         aria-describedby={error ? `${hintId} ${errorId}` : hintId}
@@ -122,12 +147,13 @@ const LogoField: React.FC<LogoFieldProps> = ({ value, onChange }) => {
           'file:bg-surface-sunken file:px-3 file:py-2.5 file:text-sm file:font-medium file:text-fg ' +
           'hover:border-brand disabled:cursor-not-allowed disabled:opacity-60'
         }
-        data-testid="logo-input"
+        data-testid={`${testId}-input`}
       />
 
       <p id={hintId} className="mt-1 text-xs text-fg-muted">
         {value ? 'Choose another file to replace it. ' : ''}
         PNG, JPEG or WebP. Resized to 512px and kept in your browser.
+        {hint ? ` ${hint}` : ''}
       </p>
 
       {error && (
@@ -135,7 +161,7 @@ const LogoField: React.FC<LogoFieldProps> = ({ value, onChange }) => {
           id={errorId}
           role="alert"
           className="mt-1.5 text-xs text-danger-text"
-          data-testid="logo-error"
+          data-testid={`${testId}-error`}
         >
           {error}
         </p>
@@ -144,4 +170,4 @@ const LogoField: React.FC<LogoFieldProps> = ({ value, onChange }) => {
   );
 };
 
-export default LogoField;
+export default ImageField;

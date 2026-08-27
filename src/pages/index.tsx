@@ -65,7 +65,10 @@ const STEPS = [
     'Add Items & Services',
     'List your products or services with descriptions, quantities, and prices.',
   ],
-  ['Set Currency & Tax', 'Choose your preferred currency and add tax percentage if applicable.'],
+  [
+    'Set Currency & Tax',
+    'Choose your currency and tax rate. On a rupee invoice, add your GSTIN and the place of supply and the CGST/SGST or IGST split is worked out for you.',
+  ],
   ['Download PDF', 'Click “Download PDF” to get your professional invoice ready to send.'],
 ] as const;
 
@@ -87,6 +90,10 @@ const FAQS = [
   {
     q: 'Do I need to create an account or register?',
     a: 'No registration is required. You can start creating professional invoices immediately without providing any personal information or creating an account.',
+  },
+  {
+    q: 'Does this create a GST-compliant invoice?',
+    a: 'It produces a tax invoice in the Rule 46 format: your GSTIN and your client’s, place of supply, HSN or SAC codes, the taxable value after any discount, and the CGST + SGST or IGST split worked out from your state and the place of supply, with the total written out in words. Whether a particular invoice is compliant also depends on your own registration and filings, so check anything unusual with your accountant.',
   },
   {
     q: 'Is my invoice data saved automatically?',

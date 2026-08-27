@@ -1,14 +1,15 @@
 /**
- * Business logos, resized in the browser and stored as a data URI.
+ * The images an invoice carries -- the business logo and the signature --
+ * resized in the browser and stored as data URIs.
  *
- * The logo travels with the invoice: into sessionStorage as part of the draft,
- * into IndexedDB as part of the history, and into the PDF as an embedded
- * image. That is what makes the size cap load-bearing rather than tidy -- an
+ * They travel with the invoice: into sessionStorage as part of the draft,
+ * into IndexedDB as part of the history, and into the PDF as embedded
+ * images. That is what makes the size cap load-bearing rather than tidy -- an
  * uncapped 4 MB phone photo would be re-serialised into sessionStorage on
  * every keystroke and stored again for every invoice ever saved.
  *
  * So whatever the user picks is rasterised down to a fixed edge and re-encoded
- * until it fits MAX_LOGO_BYTES, and rejected with a real message if it cannot.
+ * until it fits MAX_IMAGE_BYTES, and rejected with a real message if it cannot.
  *
  * Output is always PNG or JPEG. @react-pdf decodes only those two -- a WebP
  * data URI is accepted as input, because canvas can read it, but never stored.
@@ -17,24 +18,25 @@
 /**
  * 512px on the longest edge. A logo prints about 40mm wide on A4, which is
  * ~470px at 300dpi, so this is sharp at print resolution and nothing beyond it
- * is visible.
+ * is visible. A signature prints smaller still.
  */
 const MAX_EDGE = 512;
 
 /**
  * Cap on the stored data URI, not the source file. A 512px logo is typically
  * 15-60 KB; 128 KB leaves room for detailed marks while bounding the history
- * store, which keeps up to 500 invoices.
+ * store, which keeps up to 500 invoices -- and an invoice can carry two of
+ * these, so the real per-invoice ceiling is 256 KB.
  */
-export const MAX_LOGO_BYTES = 128 * 1024;
+export const MAX_IMAGE_BYTES = 128 * 1024;
 
 /** Rejected before decoding, so a mis-picked video never reaches a canvas. */
 export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 
-export const ACCEPTED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const;
+export const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const;
 
-/** What the file picker offers. Kept in step with ACCEPTED_LOGO_TYPES. */
-export const LOGO_ACCEPT_ATTRIBUTE = ACCEPTED_LOGO_TYPES.join(',');
+/** What the file picker offers. Kept in step with ACCEPTED_IMAGE_TYPES. */
+export const IMAGE_ACCEPT_ATTRIBUTE = ACCEPTED_IMAGE_TYPES.join(',');
 
 /**
  * Guards what is *read back* -- from a restored draft, from the history store,
@@ -43,13 +45,13 @@ export const LOGO_ACCEPT_ATTRIBUTE = ACCEPTED_LOGO_TYPES.join(',');
  * remote URL cannot be smuggled into an <img> to phone home, and an SVG (which
  * can carry markup) cannot be stored at all.
  */
-const STORED_LOGO_PATTERN = /^data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/;
+const STORED_IMAGE_PATTERN = /^data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/;
 
-export const isStoredLogo = (value: unknown): value is string =>
+export const isStoredImage = (value: unknown): value is string =>
   typeof value === 'string' &&
   value.length > 0 &&
-  value.length <= MAX_LOGO_BYTES &&
-  STORED_LOGO_PATTERN.test(value);
+  value.length <= MAX_IMAGE_BYTES &&
+  STORED_IMAGE_PATTERN.test(value);
 
 /**
  * Tried in order; the first result inside the cap wins.
@@ -67,7 +69,7 @@ const ENCODINGS = [
 ];
 
 /** Message is shown to the user verbatim, so it says what to do next. */
-export class LogoError extends Error {}
+export class ImageError extends Error {}
 
 const decode = (file: File): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
@@ -79,7 +81,7 @@ const decode = (file: File): Promise<HTMLImageElement> =>
     };
     image.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new LogoError('That image could not be read. Try a different file.'));
+      reject(new ImageError('That image could not be read. Try a different file.'));
     };
     image.src = url;
   });
@@ -118,30 +120,30 @@ const render = (
 };
 
 /**
- * Turns a picked file into a storable data URI, or throws a LogoError whose
+ * Turns a picked file into a storable data URI, or throws an ImageError whose
  * message is fit to show the user.
  */
-export const prepareLogo = async (file: File): Promise<string> => {
-  if (!(ACCEPTED_LOGO_TYPES as readonly string[]).includes(file.type)) {
-    throw new LogoError('Choose a PNG, JPEG or WebP image.');
+export const prepareImage = async (file: File): Promise<string> => {
+  if (!(ACCEPTED_IMAGE_TYPES as readonly string[]).includes(file.type)) {
+    throw new ImageError('Choose a PNG, JPEG or WebP image.');
   }
   if (file.size > MAX_UPLOAD_BYTES) {
-    throw new LogoError(
+    throw new ImageError(
       `That file is ${Math.round(file.size / 1024 / 1024)} MB. Choose an image under ${MAX_UPLOAD_BYTES / 1024 / 1024} MB.`,
     );
   }
 
   const image = await decode(file);
   if (!image.naturalWidth || !image.naturalHeight) {
-    throw new LogoError('That image could not be read. Try a different file.');
+    throw new ImageError('That image could not be read. Try a different file.');
   }
 
   for (const encoding of ENCODINGS) {
     const result = render(image, encoding);
-    if (result && isStoredLogo(result)) return result;
+    if (result && isStoredImage(result)) return result;
   }
 
-  throw new LogoError(
-    'That image is too detailed to embed in a PDF. Try a simpler logo, or export it smaller.',
+  throw new ImageError(
+    'That image is too detailed to embed in a PDF. Try a simpler one, or export it smaller.',
   );
 };

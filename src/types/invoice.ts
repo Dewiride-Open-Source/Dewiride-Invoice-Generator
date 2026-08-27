@@ -1,5 +1,6 @@
 import { DEFAULT_CURRENCY, isSupportedCurrency } from '../utils/currency';
-import { isStoredLogo } from '../utils/logo';
+import { isGstCurrency } from '../utils/gst';
+import { isStoredImage } from '../utils/image';
 
 export interface InvoiceItem {
   /**
@@ -11,6 +12,22 @@ export interface InvoiceItem {
   description: string;
   quantity: number;
   price: number;
+  /**
+   * Percentage off this line, 0-100.
+   *
+   * A percentage rather than an amount, because it survives a change of
+   * quantity: "10% off" stays 10% off when three units become thirty, whereas
+   * a flat 500 silently becomes a rounding error. Rule 46 requires a discount
+   * to be shown on the face of the invoice and deducted before tax, which is
+   * what utils/totals.ts does with it.
+   */
+  discount: number;
+  /**
+   * HSN (goods) or SAC (services) code. Rule 46 requires it on a GST invoice;
+   * how many digits depends on the supplier's turnover, so this is a free-text
+   * field rather than a validated one.
+   */
+  hsnSac: string;
 }
 
 /**
@@ -49,11 +66,29 @@ export interface InvoiceData {
   tax: number;
   currency: string;
   /**
-   * A PNG or JPEG data URI, or ''. Always produced by prepareLogo, which caps
+   * A PNG or JPEG data URI, or ''. Always produced by prepareImage, which caps
    * the size; never a remote URL, so the PDF and the preview stay offline.
    */
   logo: string;
   payment: PaymentDetails;
+  /**
+   * Freight or delivery, added after tax. See utils/totals.ts -- this is a
+   * simplification, and a deliberate one.
+   */
+  shipping: number;
+  /** Free text printed under the totals. */
+  notes: string;
+  /** "Net 30", or whatever the arrangement is. Printed beside the notes. */
+  paymentTerms: string;
+  /** The supplier's GSTIN. Its presence is what makes this a tax invoice. */
+  supplierGstin: string;
+  buyerGstin: string;
+  /** GST state code the supply is made *from*. See utils/gst.ts. */
+  supplierState: string;
+  /** GST state code the supply is made *to*. Drives CGST+SGST vs IGST. */
+  placeOfSupply: string;
+  /** A data URI, as for `logo`. Rule 46 wants a signature on a tax invoice. */
+  signature: string;
 }
 
 export const createEmptyPayment = (): PaymentDetails => ({
@@ -65,10 +100,6 @@ export const createEmptyPayment = (): PaymentDetails => ({
   iban: '',
   upiId: '',
 });
-
-/** Whether there is anything to print in the payment block. */
-export const hasPaymentDetails = (payment: PaymentDetails): boolean =>
-  Object.values(payment).some((value) => value.trim().length > 0);
 
 /**
  * Print order and labels, defined once. The preview and the PDF both render
@@ -104,6 +135,8 @@ export const createItem = (): InvoiceItem => ({
   description: '',
   quantity: 1,
   price: 0,
+  discount: 0,
+  hsnSac: '',
 });
 
 /** Local calendar date as yyyy-mm-dd, which is what <input type="date"> wants. */
@@ -126,6 +159,14 @@ export const createEmptyInvoice = (): InvoiceData => ({
   currency: DEFAULT_CURRENCY,
   logo: '',
   payment: createEmptyPayment(),
+  shipping: 0,
+  notes: '',
+  paymentTerms: '',
+  supplierGstin: '',
+  buyerGstin: '',
+  supplierState: '',
+  placeOfSupply: '',
+  signature: '',
 });
 
 /**
@@ -148,6 +189,8 @@ export const normaliseInvoice = (raw: unknown): InvoiceData => {
           description: typeof item.description === 'string' ? item.description : '',
           quantity: Number.isFinite(item.quantity) ? Number(item.quantity) : 1,
           price: Number.isFinite(item.price) ? Number(item.price) : 0,
+          discount: Number.isFinite(item.discount) ? Number(item.discount) : 0,
+          hsnSac: typeof item.hsnSac === 'string' ? item.hsnSac : '',
         }))
     : [];
 
@@ -178,8 +221,18 @@ export const normaliseInvoice = (raw: unknown): InvoiceData => {
       typeof draft.currency === 'string' && isSupportedCurrency(draft.currency)
         ? draft.currency
         : base.currency,
-    logo: isStoredLogo(draft.logo) ? draft.logo : '',
+    logo: isStoredImage(draft.logo) ? draft.logo : '',
+    signature: isStoredImage(draft.signature) ? draft.signature : '',
     payment,
+    shipping: Number.isFinite(draft.shipping) ? Number(draft.shipping) : 0,
+    notes: str(draft.notes),
+    paymentTerms: str(draft.paymentTerms),
+    // Upper-cased on the way in as well as in the form: a GSTIN restored from
+    // a hand-edited export has not been through the input's onChange.
+    supplierGstin: str(draft.supplierGstin).toUpperCase(),
+    buyerGstin: str(draft.buyerGstin).toUpperCase(),
+    supplierState: str(draft.supplierState),
+    placeOfSupply: str(draft.placeOfSupply),
   };
 };
 
@@ -206,6 +259,13 @@ export const getReadiness = (data: InvoiceData): InvoiceReadiness => {
   if (!data.invoiceDate) missing.push('invoice date');
   if (!data.items.some((item) => item.description.trim() && item.quantity > 0 && item.price > 0)) {
     missing.push('at least one item with a quantity and price');
+  }
+  // Only once a GSTIN says this is a tax invoice. Until then the two state
+  // fields are irrelevant and demanding them would block every ordinary
+  // invoice on a question that does not apply to it.
+  if (isGstCurrency(data.currency) && data.supplierGstin.trim()) {
+    if (!data.supplierState.trim()) missing.push('the state you supply from');
+    if (!data.placeOfSupply.trim()) missing.push('place of supply');
   }
   return { complete: missing.length === 0, missing };
 };
